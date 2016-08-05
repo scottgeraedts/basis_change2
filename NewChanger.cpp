@@ -46,7 +46,7 @@ NewChanger::NewChanger(){
 //		mb_zeros[i][0]=(i+0.5)/(1.*invNu);	
 		mb_zeros[i][1]=manybody_COM/(1.*invNu);
 	}
-		
+	
 	//CFL ds
 	ifstream kfile("kfile");
 	cfl_ds=vector< vector<int> > (Ne,vector<int>(2));
@@ -62,24 +62,8 @@ NewChanger::NewChanger(){
 		dsum[0]+=cfl_ds[i][0]*invNu;
 		dsum[1]+=cfl_ds[i][1]*invNu;
 	}
-	dsum[0]=supermod(dsum[0],NPhi);
-	dsum[1]=supermod(dsum[1],NPhi);
 	cout<<"dsum: "<<dsum[0]<<" "<<dsum[1]<<endl;
 	cout<<endl;
-
-	complex<double> temp;
-	double x,y;
-	shifted_ztable=vector< vector< complex<double> > > (NPhi,vector< complex<double> >(NPhi,0));
-
-	for(int ix=0;ix<NPhi;ix++){
-		x=(ix+dsum[0]/(1.*Ne))/(1.*NPhi);
-		for(int iy=0;iy<NPhi;iy++){
-			y=(iy+dsum[1]/(1.*Ne))/(1.*NPhi);
-			z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp);
-			shifted_ztable[ix][iy]=temp;
-		}
-	}
-
 	
 	//make the set of all possible positions, on the lnd side
 	int xcharge;
@@ -279,10 +263,8 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 				product=1;
 				for(int k=0;k<Ne;k++){
 					if(k==i) continue;
-                    ix=zs[i][0]-zs[k][0]-cfl_ds[j][0];
-                    iy=zs[i][1]-zs[k][1]-cfl_ds[j][1];
-                    x=(ix+dsum[0]/(1.*Ne))/(1.*NPhi); y=(iy+dsum[1]/(1.*Ne))/(1.*NPhi);
-//					temp=modded_lattice_z(ix,iy);
+                    x=det_helper(zs[i][0],zs[k][0],cfl_ds[j][0],dsum[0]/(1.*Ne))/(1.*NPhi);
+                    y=det_helper(zs[i][1],zs[k][1],cfl_ds[j][1],dsum[1]/(1.*Ne))/(1.*NPhi);
 					z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp);
 					product*=temp;
 				}
@@ -301,24 +283,6 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 } 
 
 inline double NewChanger::det_helper(int z1, int z2, int d, double dbarp){ return z1-z2-d*invNu+dbarp;}
-
-//call's duncan's lattice_z function, if the arguments x or y are outside of the range (0,NPhi) it shifts them into that range
-//and multiplies by the appropriate phase
-//only works for a square torus
-//on a square torus, the phase is always +- 1? 
-complex<double> NewChanger::modded_lattice_z(int x, int y){// why need this function? because want to use z_function table, which is given in first BZ.
-	int modx=supermod(x,NPhi);
-	int mody=supermod(y,NPhi);
-//	complex<double> out=lattice_z_(&NPhi,&modx,&mody,&L1,&L2,&one);
-	complex<double> out=shifted_ztable[modx][mody];
-	int j=(modx-x)/NPhi, k=(mody-y)/NPhi;
-//	out*=omega[supermod(-(mody+dbar_parameter[1])*j+(modx+dbar_parameter[0])*k,2*NPhi)];
-	out*=polar( 1., (-(mody+dsum[1]/(1.*Ne))*j+(modx+dsum[0]/(1.*Ne))*k)*M_PI/(1.*NPhi));
-//	out*=polar(1.,-M_PI/(1.*NPhi)*(mody*j-modx*k));
-//	cout<<polar(1.,-M_PI/(1.*NPhi)*(y*j-x*k))<<endl;
-	if(j%2 || k%2) return -out;
-	else return out;
-}
 
 complex<double> NewChanger::landau_basis(int ix, int iy, int index){
 	complex<double> out=1., temp;
