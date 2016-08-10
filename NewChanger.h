@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <numeric>
 #include "utils.h"
+#include <iomanip>
 
 using namespace std;
 
@@ -21,10 +22,11 @@ extern"C"{
 class NewChanger{
 
 public:
-	NewChanger();
-	void run();
+	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, bool contract);
+	Eigen::VectorXcd run(bool print);
 	void test();
 	void symmetry_checks();
+	vector<unsigned int> lnd_states,mb_states;
 private:
 	void make_manybody_vector();
 	void make_manybody_symmetry_x();
@@ -47,19 +49,19 @@ private:
 	vector< vector<int> >cfl_ds;
 	vector<int> dsum;
 	vector< vector< vector<int> > > mb_zs,lnd_zs;
-	vector<unsigned int> lnd_states,mb_states;
 
 	vector< vector< vector< complex<double> > > > lnd_table;
 	vector< vector< complex<double> > > shifted_ztable;
 	complex<double> modded_lattice_z(int x, int y);
 	
 	int NPhi,Ne,invNu;
+	int manybody_COM;
 	int zero,one;
 	int n_mb, n_lnd,copies, ystart,ystep;
 	complex<double> L1,L2;
 	string type;
 	int lnd_charge;
-	int manybody_COM;
+	bool symmetry_contract;
 };
 #endif
 
