@@ -22,11 +22,14 @@ extern"C"{
 class NewChanger{
 
 public:
-	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, bool contract);
-	Eigen::VectorXcd run(bool print);
+	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, bool contract, double ddbarx, double ddbary);
+	NewChanger();
+	void reset_ds(vector <vector <int> > ds, double ddbarx, double ddbary);
+	Eigen::VectorXcd run(bool print, bool compute_A);
 	void test();
 	void symmetry_checks();
 	vector<unsigned int> lnd_states,mb_states;
+	int get_dsum(int dir);
 private:
 	void make_manybody_vector();
 	void make_manybody_symmetry_x();
@@ -57,6 +60,7 @@ private:
 	int NPhi,Ne,invNu;
 	int manybody_COM;
 	int zero,one;
+	double ddbarx, ddbary;
 	int n_mb, n_lnd,copies, ystart,ystep;
 	complex<double> L1,L2;
 	string type;

@@ -2,7 +2,10 @@
 #include <Eigen/Sparse>
 #define NBITS 10
 
-NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, bool contract_t):
+NewChanger::NewChanger(){
+
+}
+NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, bool contract_t, double ddbarx_t=0., double ddbary_t=0.):
 	NPhi(NPhi_t),Ne(Ne_t),manybody_COM(manybody_COM_t),type(type_t),symmetry_contract(contract_t){
 
 	invNu=NPhi/Ne;
@@ -11,6 +14,8 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	L1=complex<double>(Lx/sqrt(2.),0);
 	L2=complex<double>(0,Ly/sqrt(2.));
 	
+	ddbarx=ddbarx_t;
+	ddbary=ddbary_t;
 	
 	zero=0; //for calls to duncan's functions
 	one=1; 
@@ -36,7 +41,7 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	}
 //	for(int i=0;i<mb_states.size();i++) cout<<(bitset<6>)mb_states[i]<<endl;
 	ystart=0; ystep=1;
-	copies=NPhi/ystep; //amount of redundancy 
+	copies=NPhi/ystep/Ne; //amount of redundancy 
 //	for(int i=0;i<mb_states.size();i++) cout<<(bitset<NBITS>)mb_states[i]<<endl;
 	n_mb=mb_states.size()*copies;
 
@@ -69,17 +74,17 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 		dsum[0]+=cfl_ds[i][0]*invNu;
 		dsum[1]+=cfl_ds[i][1]*invNu;
 	}
-	cout<<"dsum: "<<dsum[0]<<" "<<dsum[1]<<endl;
-	cout<<endl;
+//	cout<<"dsum: "<<dsum[0]<<" "<<dsum[1]<<endl;
+//	cout<<endl;
 
 	complex<double> temp;
 	double x,y;
 	shifted_ztable=vector< vector< complex<double> > > (NPhi,vector< complex<double> >(NPhi,0));
 
 	for(int ix=0;ix<NPhi;ix++){
-		x=(ix+dsum[0]/(1.*Ne))/(1.*NPhi);
+		x=(ix+dsum[0]/(1.*Ne)+ddbarx)/(1.*NPhi);
 		for(int iy=0;iy<NPhi;iy++){
-			y=(iy+dsum[1]/(1.*Ne))/(1.*NPhi);
+			y=(iy+dsum[1]/(1.*Ne)+ddbary)/(1.*NPhi);
 			z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp);
 			shifted_ztable[ix][iy]=temp;
 		}
@@ -91,8 +96,8 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	lnd_charge=Ne*manybody_COM;
 	if(Ne%2==0) lnd_charge+=NPhi/2; //for some reason you dont get the charge sector you expect for even Ne
 	if(type=="CFL") lnd_charge+=dsum[1]/invNu;
-	lnd_charge=lnd_charge%NPhi;
-	cout<<"charge: "<<lnd_charge<<endl;
+	lnd_charge=supermod(lnd_charge,NPhi);
+//	cout<<"charge: "<<lnd_charge<<endl;
 	for(int i=0;i<pow(2,NPhi);i++){
 		if(count_bits(i)==Ne){
 			xcharge=0;
@@ -115,11 +120,6 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	set_l_(&NPhi, &L1, &L2);
 	setup_z_function_table_();
 
-	make_manybody_vector();
-//	cout<<manybody_vector<<endl;
-	make_landau_table();
-	make_Amatrix();
-//	cout<<Amatrix<<endl;
 }
 void NewChanger::symmetry_checks(){
 	make_manybody_symmetry_x();
@@ -186,7 +186,12 @@ void NewChanger::symmetry_checks(){
 		}
 	}
 }
-Eigen::VectorXcd NewChanger::run(bool print){
+Eigen::VectorXcd NewChanger::run(bool print, bool compute_A=true){
+	make_manybody_vector();
+	if(compute_A){
+		make_landau_table();
+		make_Amatrix();
+	}
 //*****SOLUTION***///
 	double outnorm;
 	Eigen::VectorXcd out;
@@ -214,15 +219,15 @@ Eigen::VectorXcd NewChanger::run(bool print){
 //			if(norm(out(i))>1e-16) cout<<out(i)/outnorm<<" "<<(bitset<NBITS>)lnd_states[i]<<" "<<outSym(i)/outnorm<<endl;
 //	}
 
-	make_landau_symmetry_y();
-	make_manybody_symmetry_y();
-	
-	Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es_lnd(Ty_lnd), es_mb(Ty_mb);
+//	make_landau_symmetry_y();
+//	make_manybody_symmetry_y();
+//	
+//	Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es_lnd(Ty_lnd), es_mb(Ty_mb);
 
-	Eigen::MatrixXcd sym_A=es_mb.eigenvectors()*Amatrix*es_lnd.eigenvectors().adjoint();
+//	Eigen::MatrixXcd sym_A=es_mb.eigenvectors()*Amatrix*es_lnd.eigenvectors().adjoint();
 //	cout<<"block diagonal?"<<endl;
 //	cout<<sym_A<<endl;
-	cout<<endl;
+//	cout<<endl;
 
 	out=Amatrix.colPivHouseholderQr().solve(manybody_vector);	
 	outnorm=out.norm();
@@ -231,7 +236,7 @@ Eigen::VectorXcd NewChanger::run(bool print){
 		cout<<outnorm<<endl;
 		if(!manybody_vector.isApprox(Amatrix*out,1e-9)) cout<<"bad solution!"<<endl;
 		for(int i=0;i<n_lnd;i++)
-			if(norm(out(i))>1e-16) cout<<abs(out(i))/outnorm<<" "<<arg(out(i))/M_PI<<" "<<(bitset<NBITS>)lnd_states[i]<<endl;
+			if(norm(out(i))>-1) cout<<abs(out(i))/outnorm<<" "<<arg(out(i))/M_PI<<" "<<(bitset<NBITS>)lnd_states[i]<<endl;
 	}
 	return out/outnorm;
 	
@@ -267,11 +272,6 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 		COM[1]+=zs[i][1];
 	}
 
-//	if(type=="CFL"){
-//		COM[0]-=dsum[0]/invNu;//this is correct since dsum lives on the same lattice as the zs
-//		COM[1]-=dsum[1]/invNu;
-//	}
-	//cout<<COM[0]<<" "<<COM[1]<<endl;
 	for( int i=0;i<invNu;i++){
 		if(type=="CFL"){
 			x=(COM[0]-dsum[0]/invNu)/(1.*NPhi)-mb_zeros[i][0];
@@ -323,7 +323,41 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
         
 	return out;
 } 
+void NewChanger::reset_ds(vector< vector<int> > ds, double ddbarx_t=0., double ddbary_t=0.){
+	ddbarx=ddbarx_t;
+	ddbary=ddbary_t;
 
+	//CFL ds
+	cfl_ds=ds;
+	int old_dsum=dsum[1];
+	//vector< vector<int> > (Ne,vector<int>(2));
+	dsum=vector<int>(2,0);
+	for(int i=0;i<Ne;i++){
+		dsum[0]+=cfl_ds[i][0]*invNu;
+		dsum[1]+=cfl_ds[i][1]*invNu;
+	}
+	if(old_dsum!=dsum[1]){
+		cout<<"you reset the ds into a different charge sector!"<<endl;
+		exit(0);
+	}
+//	cout<<"dsum: "<<dsum[0]<<" "<<dsum[1]<<endl;
+//	cout<<endl;
+
+	complex<double> temp;
+	double x,y;
+	shifted_ztable=vector< vector< complex<double> > > (NPhi,vector< complex<double> >(NPhi,0));
+
+	for(int ix=0;ix<NPhi;ix++){
+		x=(ix+dsum[0]/(1.*Ne)+ddbarx)/(1.*NPhi);
+		for(int iy=0;iy<NPhi;iy++){
+			y=(iy+dsum[1]/(1.*Ne)+ddbary)/(1.*NPhi);
+			z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp);
+			shifted_ztable[ix][iy]=temp;
+		}
+	}
+
+
+}
 inline double NewChanger::det_helper(int z1, int z2, int d, double dbarp){ return z1-z2-d*invNu+dbarp;}
 
 complex<double> NewChanger::modded_lattice_z(int x, int y){// why need this function? because want to use z_function table, which is given in first BZ.
@@ -333,7 +367,7 @@ complex<double> NewChanger::modded_lattice_z(int x, int y){// why need this func
 	complex<double> out=shifted_ztable[modx][mody];
 	int j=(modx-x)/NPhi, k=(mody-y)/NPhi;
 //	out*=omega[supermod(-(mody+dbar_parameter[1])*j+(modx+dbar_parameter[0])*k,2*NPhi)];
-	out*=polar( 1., (-(mody+dsum[1]/(1.*Ne))*j+(modx+dsum[0]/(1.*Ne))*k)*M_PI/(1.*NPhi));
+	out*=polar( 1., (-(mody+dsum[1]/(1.*Ne)+ddbary)*j+(modx+dsum[0]/(1.*Ne)+ddbarx)*k)*M_PI/(1.*NPhi));
 //	out*=polar(1.,-M_PI/(1.*NPhi)*(mody*j-modx*k));
 //	cout<<polar(1.,-M_PI/(1.*NPhi)*(y*j-x*k))<<endl;
 	if(j%2 || k%2) return -out;
@@ -504,6 +538,7 @@ void NewChanger::make_manybody_symmetry_y(){
 		}
 	}
 }
+int NewChanger::get_dsum(int dir){ return dsum[dir]; }
 void NewChanger::test(){
 	double x=0.5;
 	double y=0.5;
@@ -514,45 +549,52 @@ void NewChanger::test(){
 	cout<<temp<<endl;
 }	
 int main(){
-	int NPhi,Ne,manybody_COM;
-	string type;
-	ifstream params("params");
-	params>>NPhi;
-	params>>Ne;
-	params>>manybody_COM;
-	params>>type;
-	params.close();
 
-	vector<vector<int> > cfl_ds=vector<vector<int> >(Ne,vector<int>(2,0));
-	ifstream kfile("kfile");
-	cout<<"ks"<<endl;
-	for(int i=0;i<Ne;i++){
-		kfile>>cfl_ds[i][0]>>cfl_ds[i][1];		
-		cout<<cfl_ds[i][0]<<" "<<cfl_ds[i][1]<<endl;
-		cfl_ds[i][0]=supermod(cfl_ds[i][0],Ne);
-		cfl_ds[i][1]=supermod(cfl_ds[i][1],Ne);
-	}
-	kfile.close();
-	NewChanger control(NPhi,Ne,manybody_COM,type,cfl_ds,true);
-	control.test();
-	return 0;
-	Eigen::VectorXcd vec0=control.run(true);
+//	int NPhi,Ne,manybody_COM;
+//	string type;
+//	ifstream params("params");
+//	params>>NPhi;
+//	params>>Ne;
+//	params>>manybody_COM;
+//	params>>type;
+//	params.close();
 
+//	vector<vector<int> > cfl_ds=vector<vector<int> >(Ne,vector<int>(2,0));
+//	ifstream kfile("kfile");
+//	cout<<"ks"<<endl;
+//	for(int i=0;i<Ne;i++){
+//		kfile>>cfl_ds[i][0]>>cfl_ds[i][1];		
+//		cout<<cfl_ds[i][0]<<" "<<cfl_ds[i][1]<<endl;
+//	}
+//	kfile.close();
+//	NewChanger control(NPhi,Ne,manybody_COM,type,cfl_ds,true);
+//	Eigen::VectorXcd vec0=control.run(false);
+
+//	void ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control,  const Eigen::VectorXcd &vec0);
+//	ph_overlap2(Ne, NPhi, type, cfl_ds, control, vec0);
+
+//	void batch_overlap();
+//	batch_overlap();
+
+	void orthogonality();
+	orthogonality();
+}
+void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control, const Eigen::VectorXcd &vec0){
 	vector<vector<int> > new_cfl_ds=vector<vector<int> >(Ne,vector<int>(2,0));
 	for(int i=0;i<Ne;i++){
-		new_cfl_ds[i][0]=supermod(cfl_ds[i][0]+1,Ne);
-		new_cfl_ds[i][1]=supermod(cfl_ds[i][1]+1,Ne);
+		new_cfl_ds[i][0]=-cfl_ds[i][0];
+		new_cfl_ds[i][1]=-cfl_ds[i][1]+1;
 	}
 //	new_cfl_ds=cfl_ds;
 //	new_cfl_ds[Ne-1][0]=1-new_cfl_ds[Ne-1][0];
 //	new_cfl_ds[Ne-1][1]=1-new_cfl_ds[Ne-1][1];
 	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds,true);	
-	Eigen::VectorXcd vec1=test1.run(true);
+	Eigen::VectorXcd vec1=test1.run(false);
 
 	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
 	vector<Eigen::Triplet<complex<double> > > ph_triplets;
 	vector<unsigned int>::iterator it;
-	int partner;
+	int partner,sign,xcharge,j;
 	for(int i=0;i<(signed)control.lnd_states.size();i++){
 		partner=0;
 		for(int x=0;x<NPhi;x++)
@@ -560,7 +602,14 @@ int main(){
 
 		it=find(test1.lnd_states.begin(),test1.lnd_states.end(),partner);
 		if(it != test1.lnd_states.end()){
-			ph_triplets.push_back(Eigen::Triplet<complex<double> >(i,it-test1.lnd_states.begin(),1) ); 		
+			j=it-test1.lnd_states.begin();
+			xcharge=0;
+			for(int x=0;x<NPhi;x++) 
+				if(control.lnd_states[i] & 1<<x) xcharge+=x;
+			
+			if(xcharge%2) sign=-1;
+			else sign=1;
+			ph_triplets.push_back(Eigen::Triplet<complex<double> >(i,j,sign) ); 		
 		}else{
 			cout<<(bitset<NBITS>)partner<<" not found!"<<endl;
 		}
@@ -588,3 +637,260 @@ int main(){
 	
 		
 }
+double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control, const Eigen::VectorXcd &vec0){
+	vector<vector<int> > new_cfl_ds=vector<vector<int> >(Ne,vector<int>(2,0));
+	for(int i=0;i<Ne;i++){
+		new_cfl_ds[i][0]=-cfl_ds[i][0];
+		new_cfl_ds[i][1]=-cfl_ds[i][1]+1;
+	}
+	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds,true);	
+	Eigen::VectorXcd vec1=test1.run(false);
+
+	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
+	vector<Eigen::Triplet<complex<double> > > ph_triplets;
+	vector<unsigned int>::const_iterator it;
+	int partner,sign,xcharge,j;
+	for(int i=0;i<(signed)control.lnd_states.size();i++){
+		partner=0;
+		for(int x=0;x<NPhi;x++)
+			if(! (control.lnd_states[i] & 1<<x)) partner=partner | 1<<x;
+
+		it=find(test1.lnd_states.begin(),test1.lnd_states.end(),partner);
+		if(it != test1.lnd_states.end()){
+			j=it-test1.lnd_states.begin();
+			xcharge=0;
+			for(int x=0;x<NPhi;x++) 
+				if(control.lnd_states[i] & 1<<x) xcharge+=x;
+			
+			if(xcharge%2) sign=-1;
+			else sign=1;
+			ph_triplets.push_back(Eigen::Triplet<complex<double> >(i,j,sign) ); 		
+		}else{
+			cout<<(bitset<NBITS>)partner<<" not found in ph!"<<endl;
+		}
+	}
+	Eigen::SparseMatrix<complex<double> > ph_sym(control.lnd_states.size(),control.lnd_states.size());
+	ph_sym.setFromTriplets(ph_triplets.begin(),ph_triplets.end());
+
+	///***MAKE INVERSION MATRIX***///
+	ph_triplets.clear();
+	for(int i=0;i<(signed)control.lnd_states.size();i++){
+		partner=0;
+		for(int x=0;x<NPhi;x++)
+			if( control.lnd_states[i] & 1<<x) partner=partner | 1<<(NPhi-1-x);
+
+		it=find(test1.lnd_states.begin(),test1.lnd_states.end(),partner);
+		if(it != test1.lnd_states.end()){
+			j=it-test1.lnd_states.begin();
+			ph_triplets.push_back(Eigen::Triplet<complex<double> >(i,j,1) ); 		
+		}else{
+			cout<<(bitset<NBITS>)partner<<" not found in inv!"<<endl;
+		}
+	}
+	Eigen::SparseMatrix<complex<double> > inv_sym(control.lnd_states.size(),control.lnd_states.size());
+	inv_sym.setFromTriplets(ph_triplets.begin(),ph_triplets.end());	
+
+	for(int i=0;i<Ne;i++){
+		new_cfl_ds[i][0]=cfl_ds[i][0];
+		new_cfl_ds[i][1]=cfl_ds[i][1]+1;
+	}
+	NewChanger test2(NPhi,Ne,0,type,new_cfl_ds,true);	
+	Eigen::VectorXcd vec2=test2.run(false);
+
+	///***MAKE COM INVERSION MATRIX***///
+	ph_triplets.clear();
+	for(int i=0;i<(signed)control.lnd_states.size();i++){
+		partner=0;
+		for(int x=0;x<NPhi;x++)
+			if( control.lnd_states[i] & 1<<x) partner=partner | 1<<supermod(x+1,NPhi);
+
+		it=find(test2.lnd_states.begin(),test2.lnd_states.end(),partner);
+		if(it != test2.lnd_states.end()){
+			j=it-test2.lnd_states.begin();
+			ph_triplets.push_back(Eigen::Triplet<complex<double> >(i,j,1) ); 		
+		}else{
+			cout<<(bitset<NBITS>)partner<<" not found in com!"<<endl;
+		}
+	}
+	Eigen::SparseMatrix<complex<double> > com_sym(control.lnd_states.size(),control.lnd_states.size());
+	com_sym.setFromTriplets(ph_triplets.begin(),ph_triplets.end());	
+
+	for(int i=0;i<Ne;i++){
+		new_cfl_ds[i][0]=-cfl_ds[i][0];
+		new_cfl_ds[i][1]=cfl_ds[i][1];
+	}
+	NewChanger test3(NPhi,Ne,0,type,new_cfl_ds,true);	
+	Eigen::VectorXcd vec3=test3.run(false);
+
+
+	complex<double> overlap;
+	overlap=(vec0).dot( inv_sym*vec1);
+	cout<<"R2:"<<endl;
+	cout<<overlap<<endl;
+	cout<<abs(overlap)<<" "<<arg(overlap)<<endl;
+	
+	overlap=(vec0).dot( ph_sym*vec1.conjugate());
+	cout<<"PH:"<<endl;
+	cout<<overlap<<endl;
+	cout<<abs(overlap)<<" "<<arg(overlap)<<endl;
+
+	overlap=(vec0).dot( inv_sym*ph_sym.transpose()*vec0.conjugate());
+	cout<<"PH R2:"<<endl;
+	cout<<overlap<<endl;
+	cout<<abs(overlap)<<" "<<arg(overlap)<<endl;
+
+	overlap=(vec0).dot( com_sym*vec2);
+	cout<<"COM:"<<endl;
+	cout<<overlap<<endl;
+	cout<<abs(overlap)<<" "<<arg(overlap)<<endl;
+
+	overlap=(vec0).dot( vec3.conjugate());
+	cout<<"Rx:"<<endl;
+	cout<<overlap<<endl;
+	cout<<abs(overlap)<<" "<<arg(overlap)<<endl;
+
+	return abs(overlap);	
+}
+
+void batch_overlap(){
+
+	int Ne=8;
+	int NPhi=16;
+	vector< vector<int> > cfl_ds( Ne, vector<int>(2));
+	ifstream kfile("batch_ds");
+	vector<int>  Dbar(2);
+	double Dvar,ddbarx,ddbary;
+	Eigen::VectorXcd vec0;
+
+	ifstream control_ks("kfile");
+	for(int x=0;x<Ne;x++){
+		control_ks>>cfl_ds[x][0]>>cfl_ds[x][1];
+//			cout<<cfl_ds[x][0]<<" "<<cfl_ds[x][1]<<" ";
+	}
+		
+	while(true){
+//		for(int x=0;x<Ne;x++){
+//			kfile>>cfl_ds[x][0]>>cfl_ds[x][1];
+////			cout<<cfl_ds[x][0]<<" "<<cfl_ds[x][1]<<" ";
+//		}
+		kfile>>ddbarx>>ddbary;
+//		cout<<endl;
+		if (kfile.eof()){
+//			cout<<"eof reached"<<endl;
+			break;
+		}
+		
+		Dbar=vector<int>(2,0);
+		for(int x=0; x<Ne; x++){
+			Dbar[0]+=cfl_ds[x][0];
+			Dbar[1]+=cfl_ds[x][1];
+		}
+		Dvar=0.;
+//		for(int x=0; x<Ne; x++){
+//			Dvar+=sqrt( pow(cfl_ds[x][0]-(1.*Dbar[0])/(1.*Ne),2)+pow(cfl_ds[x][1]-(1.*Dbar[1])/(1.*Ne),2));
+//		}
+//		Dvar/=sqrt(Ne);
+		Dvar+=sqrt( pow(ddbarx/(2.*Ne),2)+pow(ddbary/(2.*Ne),2));
+		
+		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,true,ddbarx/(1.*Ne),ddbary/(1.*Ne));
+		vec0=control.run(false);
+		cout<<Dvar<<" "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,vec0)<<endl;
+	}
+	kfile.close();
+}
+
+void orthogonality(){
+	int Ne=8;
+	int NPhi=16;
+	bool first=true;
+	vector< vector<int> > cfl_ds( Ne, vector<int>(2));
+	ifstream kfile("batch_ks");
+	vector<Eigen::VectorXcd> vecs;
+	NewChanger control;
+	cout<<"(dx,dy) values "<<endl;
+	while(true){
+		for(int x=0;x<Ne;x++){
+			kfile>>cfl_ds[x][0]>>cfl_ds[x][1];
+		}
+		if (kfile.eof()){
+			break;
+		}
+		for(int x=0;x<Ne;x++){
+			cout<<"("<<cfl_ds[x][0]<<" "<<cfl_ds[x][1]<<"), ";
+		}
+		cout<<endl;
+		
+		
+		if(first) control=NewChanger(NPhi,Ne,0,"CFL",cfl_ds,true);
+		else control.reset_ds(cfl_ds);
+		vecs.push_back(control.run(true,first));
+		first=false;
+	}
+	cout<<endl;
+	kfile.close();
+	
+	int nvecs=vecs.size();
+	Eigen::MatrixXcd overlaps(nvecs,nvecs);
+	for(int i=0; i<nvecs; i++){
+		for(int j=0; j<nvecs; j++){
+			overlaps(i,j)=vecs[i].dot(vecs[j]);
+		}
+	} 
+	cout<<"overlaps between the different states considered"<<endl;
+	cout<<overlaps<<endl<<endl;
+	Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(overlaps);
+	cout<<"eigenvalues of the overlap matrix  (to reveal rank)"<<endl;
+	cout<<es.eigenvalues()<<endl<<endl;
+	
+	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
+	vector<Eigen::Triplet<complex<double> > > ph_triplets;
+	vector<unsigned int>::const_iterator it;
+	int partner,sign,xcharge,j;
+	for(int i=0;i<(signed)control.lnd_states.size();i++){
+		partner=0;
+		for(int x=0;x<NPhi;x++)
+			if(! (control.lnd_states[i] & 1<<x)) partner=partner | 1<<supermod(NPhi-1-x,NPhi);
+
+		it=find(control.lnd_states.begin(),control.lnd_states.end(),partner);
+		if(it != control.lnd_states.end()){
+			j=it-control.lnd_states.begin();
+			xcharge=0;
+			for(int x=0;x<NPhi;x++) 
+				if(control.lnd_states[i] & 1<<x) xcharge+=x;
+			
+			if(xcharge%2) sign=-1;
+			else sign=1;
+			ph_triplets.push_back(Eigen::Triplet<complex<double> >(i,j,sign) ); 		
+		}else{
+			cout<<(bitset<NBITS>)partner<<" not found in ph!"<<endl;
+		}
+	}
+	Eigen::SparseMatrix<complex<double> > ph_sym(control.lnd_states.size(),control.lnd_states.size());
+	ph_sym.setFromTriplets(ph_triplets.begin(),ph_triplets.end());
+	complex<double> overlap;
+	cout<<"particle-hole (plus R2) symmetry of the various states"<<endl;
+	for (int i=0; i<nvecs; i++){
+		overlap=vecs[i].dot(ph_sym*vecs[i].conjugate());
+		cout<<abs(overlap)<<" "<<endl;
+	}
+	cout<<endl;
+	
+	//***COMPARE TO ED STATE***///
+	cout<<"overlaps with ED ground states"<<endl;
+	double r,phi;
+	int conf;
+	stringstream filename;
+	filename<<"eigen"<<supermod(control.get_dsum(0)/2,Ne)<<"_"<<supermod(control.get_dsum(1)/2,Ne)+Ne;
+	ifstream eigen(filename.str().c_str());
+	cout<<filename.str()<<endl;
+	Eigen::VectorXcd EDstate(control.lnd_states.size());
+	for(int i=0; i<(signed)control.lnd_states.size(); i++){
+		eigen>>r>>phi>>conf;
+		EDstate(i)=polar(r,phi*M_PI);
+	}
+	for(int i=0;i<nvecs;i++){
+		overlap=vecs[i].dot(EDstate);
+		cout<<abs(overlap)<<endl;
+	}
+}
+
