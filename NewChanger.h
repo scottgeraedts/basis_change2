@@ -2,6 +2,7 @@
 #define NEW_CHANGER_H
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <Eigen/QR>
 #include <vector>
 #include <complex>
@@ -9,6 +10,7 @@
 #include <numeric>
 #include "utils.h"
 #include <iomanip>
+#include "MersenneTwister.h"
 
 using namespace std;
 
@@ -22,8 +24,9 @@ extern"C"{
 class NewChanger{
 
 public:
-	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, bool contract, double ddbarx, double ddbary);
+	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, double ddbarx, double ddbary);
 	NewChanger();
+	Eigen::SparseMatrix< complex<double> > density_operator(int mx, int my);	
 	void reset_ds(vector <vector <int> > ds, double ddbarx, double ddbary);
 	Eigen::VectorXcd run(bool print, bool compute_A);
 	void test();
@@ -38,6 +41,7 @@ private:
 	void make_landau_symmetry_y();
 	void make_Amatrix();
 	void make_landau_table();
+	void setup_mbl_zs(string type);
 	
 	complex<double> get_wf(const vector< vector<int> > &zs);
 	complex<double> landau_basis( int ix, int iy, int index);

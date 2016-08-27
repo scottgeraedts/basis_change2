@@ -5,8 +5,8 @@
 NewChanger::NewChanger(){
 
 }
-NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, bool contract_t, double ddbarx_t=0., double ddbary_t=0.):
-	NPhi(NPhi_t),Ne(Ne_t),manybody_COM(manybody_COM_t),type(type_t),symmetry_contract(contract_t){
+NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, double ddbarx_t=0., double ddbary_t=0.):
+	NPhi(NPhi_t),Ne(Ne_t),manybody_COM(manybody_COM_t),type(type_t){
 
 	invNu=NPhi/Ne;
 	double Lx=sqrt(2*M_PI*NPhi);
@@ -19,44 +19,6 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	
 	zero=0; //for calls to duncan's functions
 	one=1; 
-	
-	//make the set of all possible positions, for mb side
-	int tempbit;
-	bool found;
-	vector<unsigned int>::iterator it;
-	for(int i=0;i<pow(2,NPhi);i++){
-		if(count_bits(i)==Ne){
-			tempbit=i;
-			found=false;
-			for(int x=0;x<NPhi;x++){
-				tempbit=cycle_bits(tempbit,NPhi);
-				it=find(mb_states.begin(),mb_states.end(),tempbit);
-				if(it != mb_states.end()){
-					found=true;
-					break;
-				} 
-			}
-			if(!found || !symmetry_contract) mb_states.push_back(i);
-		} 
-	}
-//	for(int i=0;i<mb_states.size();i++) cout<<(bitset<6>)mb_states[i]<<endl;
-	ystart=0; ystep=1;
-	copies=NPhi/ystep/Ne; //amount of redundancy 
-//	for(int i=0;i<mb_states.size();i++) cout<<(bitset<NBITS>)mb_states[i]<<endl;
-	n_mb=mb_states.size()*copies;
-
-	vector<int> bits;
-	mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
-	for(int i=0;i<(signed)mb_states.size();i++){
-		bits=bitset_to_pos(mb_states[i],NPhi);	
-		
-		for(int y=0;y<copies;y++){
-			for(int x=0;x<Ne;x++){
-				mb_zs[i+y*mb_states.size()][x][0]=bits[x];
-				mb_zs[i+y*mb_states.size()][x][1]=ystart+y*ystep;
-			}
-		}
-	}
 	
 	//zeros for mb state
 	mb_zeros=vector< vector<double> >(invNu,vector<double>(2));
@@ -116,6 +78,7 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	lnd_zeros=vector<double>(NPhi);
 	for(int i=0;i<NPhi;i++) lnd_zeros[i]=-0.5+(2*i+1)/(2.*NPhi);
 	
+	setup_mbl_zs("random");
 	//make stuff
 	set_l_(&NPhi, &L1, &L2);
 	setup_z_function_table_();
@@ -234,7 +197,7 @@ Eigen::VectorXcd NewChanger::run(bool print, bool compute_A=true){
 	if(print){
 		cout<<"final version"<<endl;
 		cout<<outnorm<<endl;
-		if(!manybody_vector.isApprox(Amatrix*out,1e-9)) cout<<"bad solution!"<<endl;
+		if(!manybody_vector.isApprox(Amatrix*out,1e-9)) cout<<"*******************bad solution!****************"<<endl;
 		for(int i=0;i<n_lnd;i++)
 			if(norm(out(i))>-1) cout<<abs(out(i))/outnorm<<" "<<arg(out(i))/M_PI<<" "<<(bitset<NBITS>)lnd_states[i]<<endl;
 	}
@@ -265,7 +228,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 		}
 	}
 	
-	//com part
+	//com p complex<double> 
 	int COM[2]={0,0};
 	for( int i=0;i<Ne;i++){
 		COM[0]+=zs[i][0];
@@ -292,7 +255,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 	for(int i=0;i<invNu;i++) mb_zeros_sumx+=mb_zeros[i][0];
 	out*=polar(1.,-M_PI*COM[1]*mb_zeros_sumx/(1.*NPhi));
 	
-	//determinant part
+	//determinant p complex<double> 
 	Eigen::FullPivLU<Eigen::MatrixXcd> detSolver;
 	if(type=="CFL"){
 		complex<double> product;
@@ -310,7 +273,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 					temp=modded_lattice_z(ix,iy);
 					product*=temp;
 				}
-				//this part is only valid on a square torus!
+				//this p complex<double>  is only valid on a square torus!
 				M(i,j)=product*polar(1., M_PI*(zs[i][1]*cfl_ds[j][0] - zs[i][0]*cfl_ds[j][1])/(1.*NPhi) );
 			}
 		}
@@ -374,6 +337,96 @@ complex<double> NewChanger::modded_lattice_z(int x, int y){// why need this func
 	else return out;
 }
 
+void NewChanger::setup_mbl_zs(string type){
+
+	bool symmetry_contract=true;
+	bool found,found2;
+
+	if(type=="lines"){	
+		//make the set of all possible positions, for mb side
+		int tempbit;
+		vector<unsigned int>::iterator it;
+		for(int i=0;i<pow(2,NPhi);i++){
+			if(count_bits(i)==Ne){
+				tempbit=i;
+				found=false;
+				for(int x=0;x<NPhi;x++){
+					tempbit=cycle_bits(tempbit,NPhi);
+					it=find(mb_states.begin(),mb_states.end(),tempbit);
+					if(it != mb_states.end()){
+						found=true;
+						break;
+					} 
+				}
+				if(!found || !symmetry_contract) mb_states.push_back(i);
+			} 
+		}
+	//	for(int i=0;i<mb_states.size();i++) cout<<(bitset<6>)mb_states[i]<<endl;
+		ystart=0; ystep=1;
+		copies=NPhi/ystep/Ne; //amount of redundancy 
+	//	for(int i=0;i<mb_states.size();i++) cout<<(bitset<NBITS>)mb_states[i]<<endl;
+		n_mb=mb_states.size()*copies;
+
+		vector<int> bits;
+		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
+		for(int i=0;i<(signed)mb_states.size();i++){
+			bits=bitset_to_pos(mb_states[i],NPhi);	
+		
+			for(int y=0;y<copies;y++){
+				for(int x=0;x<Ne;x++){
+					mb_zs[i+y*mb_states.size()][x][0]=bits[x];
+					mb_zs[i+y*mb_states.size()][x][1]=ystart+y*ystep;
+				}
+			}
+		}
+	}else if(type=="random"){
+		n_mb=lnd_states.size();
+		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
+		MTRand ran;
+	
+		vector<int> tempr(2);
+		found=true;
+		for(int i=0;i<n_mb;i++){
+			while(found){ 
+				found=false;
+				found2=true;
+				//attempt to generate new set of zs
+				for(int x=0;x<Ne;x++){
+					//loop to avoid duplicates
+					while(found2){
+						found2=false;
+						mb_zs[i][x][0]=ran.randInt(NPhi-1);
+						mb_zs[i][x][1]=ran.randInt(NPhi-1);
+						for(int y=0;y<x;y++){
+							if(mb_zs[i][x]==mb_zs[i][y]){
+								found2=true;
+								break;
+							}
+						}
+					}
+					found2=true;
+				}
+				//check to make sure we haven't made the same set of zs twice
+				for(int j=0;j<i;j++){
+					if(mb_zs[i]==mb_zs[j]){
+						found=true;
+						break;
+					}
+				}
+			}
+			found=true;
+		}
+					
+	}else{
+		cout<<"invalid mbl zs type"<<endl;
+		exit(0);
+	}
+//	cout<<"n_mb: "<<n_mb<<endl;
+//	for(int i=0;i<n_mb;i++){
+//		for(int x=0;x<Ne;x++) cout<<"("<<mb_zs[i][x][0]<<","<<mb_zs[i][x][1]<<") ";
+//		cout<<endl;
+//	}	
+}
 complex<double> NewChanger::landau_basis(int ix, int iy, int index){
 	complex<double> out=1., temp;
 	double x,y,yzero=index/(1.*NPhi),xzerosum=0;
@@ -472,7 +525,7 @@ void NewChanger::make_landau_symmetry_y(){
 		if(it!=lnd_states.end()){
 			newindex=it-lnd_states.begin();
 			if(invNu%2) temp*=-1.;
-			Ty_lnd(i,newindex)=temp;//*polar(1.,-2*M_PI*(ystart+y)/(1.*NPhi));
+			Ty_lnd(i,newindex)=temp;//*polar(1.,-2*M_PI*(yst complex<double> +y)/(1.*NPhi));
 		}else{
 			cout<<"state: "<<(bitset<NBITS>)newstate<<" not found"<<endl;
 			exit(0);
@@ -512,7 +565,7 @@ void NewChanger::make_manybody_symmetry_x(){
 				Tx_mb(i+y*mb_states.size(),newindex+y*mb_states.size())=temp*sign*polar(1.,-M_PI*y*ystep/(1.*invNu));
 			}
 		}else{
-			cout<<"state: "<<(bitset<NBITS>)newstate<<" not found"<<endl;
+			cout<<"state: "<<(bitset<NBITS>)newstate<<" not found in many body symmetry x"<<endl;
 			exit(0);
 		}
 		
@@ -548,6 +601,76 @@ void NewChanger::test(){
 	cout<<setprecision(10)<<"testing duncan's z function"<<endl;
 	cout<<temp<<endl;
 }	
+
+//construct denstiy operator rho(kx,ky)
+Eigen::SparseMatrix< complex<double> > NewChanger::density_operator(int my, int mx){
+	//this operator doesn't conserve charge, and so it maps between different bases
+	//this p complex<double>  constructs the basis to map to, it works just like make_states
+	//the new basis has its charge INCREASED by kx
+	int verbose=0,xcharge;
+	vector<unsigned int> new_states;
+	if(mx==0) new_states=lnd_states;
+	else{
+		for(int i=0;i<intpow(2,NPhi);i++){
+			xcharge=0;
+			for(int x=0;x<NPhi;x++)
+				if(i & 1<<x) xcharge+=x;
+			if(count_bits(i)==Ne && xcharge%NPhi==supermod(lnd_charge+mx,NPhi) )
+				new_states.push_back(i);
+		}
+	}
+	int newNStates=new_states.size();
+
+	if(verbose>0){	
+		for(int i=0;i<(signed)lnd_states.size();i++) cout<<(bitset<16>)lnd_states[i]<<endl;
+		cout<<endl;
+		for(int i=0;i<(signed)new_states.size();i++) cout<<(bitset<16>)new_states[i]<<endl;
+	}
+	Eigen::SparseMatrix< complex<double> > rho(newNStates,n_lnd);
+	vector<Eigen::Triplet< complex<double> > > triplets;
+
+	double Lx=sqrt(2*M_PI*NPhi), Ly=Lx;
+	//for every state, find all the states which you get from moving one electron kx, and add those matrix elements to rho
+	 complex<double>  prefactor;
+	double sign,kx,ky;
+	if(mx>NPhi/2) kx=2*M_PI/Lx*(mx-NPhi);
+	else kx=2*M_PI/Lx*mx;
+	if(my>NPhi/2) ky=2*M_PI/Ly*(my-NPhi);
+	else ky=2*M_PI/Ly*my;
+	vector<unsigned int>::iterator it;
+	unsigned int newstate;
+	prefactor=polar(exp(-0.25*(pow(kx,2)+pow(ky,2))), 0.5*kx*ky);
+	for(int i1=0; i1<n_lnd; i1++){
+		if(verbose>1) cout<<(bitset<6>)lnd_states[i1]<<endl;
+		for(int x=0; x<NPhi; x++){
+			try{
+				newstate=move_bit(lnd_states[i1],NPhi,x,mx);
+			}catch(int e){
+				continue;
+			}
+			if(verbose>1) cout<<x<<" "<<(bitset<6>)newstate<<endl;
+			it=find(new_states.begin(),new_states.end(),newstate);
+			if(it==new_states.end()) continue;
+			//a minus sign from normal ordering if there's an even number of electrons
+			if( newstate<lnd_states[i1] && Ne%2==0 ) sign=-1.;
+			else sign=1.;
+			//another minus sign for every electron this electron hops over
+			if (x+mx>NPhi){
+				for(int y=0;y<(x+mx)%NPhi;y++)
+					if(lnd_states[i1] & 1<<y) sign*=-1;
+				for(int y=x+1;y<NPhi;y++)
+					if(lnd_states[i1] & 1<<y) sign*=-1;
+			}else{
+				for(int y=x+1;y<x+mx;y++) 
+					if(lnd_states[i1] & 1<<y) sign*=-1;
+			}
+			triplets.push_back(Eigen::Triplet< complex<double> >( it-new_states.begin(),i1,sign*prefactor*polar(1.,ky*2*M_PI/Lx*x) ) );
+		}
+	}
+	rho.setFromTriplets(triplets.begin(),triplets.end());
+	if(verbose>1) cout<<rho<<endl;
+	return rho;				
+}
 int main(){
 
 //	int NPhi,Ne,manybody_COM;
@@ -567,17 +690,19 @@ int main(){
 //		cout<<cfl_ds[i][0]<<" "<<cfl_ds[i][1]<<endl;
 //	}
 //	kfile.close();
-//	NewChanger control(NPhi,Ne,manybody_COM,type,cfl_ds,true);
-//	Eigen::VectorXcd vec0=control.run(false);
+//	NewChanger control(NPhi,Ne,manybody_COM,type,cfl_ds);
+//	Eigen::VectorXcd vec0=control.run(true);
 
 //	void ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control,  const Eigen::VectorXcd &vec0);
 //	ph_overlap2(Ne, NPhi, type, cfl_ds, control, vec0);
 
+	void CFL_berry();
+	CFL_berry();
 //	void batch_overlap();
 //	batch_overlap();
 
-	void orthogonality();
-	orthogonality();
+//	void orthogonality();
+//	orthogonality();
 }
 void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control, const Eigen::VectorXcd &vec0){
 	vector<vector<int> > new_cfl_ds=vector<vector<int> >(Ne,vector<int>(2,0));
@@ -588,7 +713,7 @@ void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, con
 //	new_cfl_ds=cfl_ds;
 //	new_cfl_ds[Ne-1][0]=1-new_cfl_ds[Ne-1][0];
 //	new_cfl_ds[Ne-1][1]=1-new_cfl_ds[Ne-1][1];
-	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds,true);	
+	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds);	
 	Eigen::VectorXcd vec1=test1.run(false);
 
 	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
@@ -643,7 +768,7 @@ double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, 
 		new_cfl_ds[i][0]=-cfl_ds[i][0];
 		new_cfl_ds[i][1]=-cfl_ds[i][1]+1;
 	}
-	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds,true);	
+	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds);	
 	Eigen::VectorXcd vec1=test1.run(false);
 
 	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
@@ -694,7 +819,7 @@ double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, 
 		new_cfl_ds[i][0]=cfl_ds[i][0];
 		new_cfl_ds[i][1]=cfl_ds[i][1]+1;
 	}
-	NewChanger test2(NPhi,Ne,0,type,new_cfl_ds,true);	
+	NewChanger test2(NPhi,Ne,0,type,new_cfl_ds);	
 	Eigen::VectorXcd vec2=test2.run(false);
 
 	///***MAKE COM INVERSION MATRIX***///
@@ -792,7 +917,7 @@ void batch_overlap(){
 //		Dvar/=sqrt(Ne);
 		Dvar+=sqrt( pow(ddbarx/(2.*Ne),2)+pow(ddbary/(2.*Ne),2));
 		
-		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,true,ddbarx/(1.*Ne),ddbary/(1.*Ne));
+		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,ddbarx/(1.*Ne),ddbary/(1.*Ne));
 		vec0=control.run(false);
 		cout<<Dvar<<" "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,vec0)<<endl;
 	}
@@ -821,7 +946,7 @@ void orthogonality(){
 		cout<<endl;
 		
 		
-		if(first) control=NewChanger(NPhi,Ne,0,"CFL",cfl_ds,true);
+		if(first) control=NewChanger(NPhi,Ne,0,"CFL",cfl_ds);
 		else control.reset_ds(cfl_ds);
 		vecs.push_back(control.run(true,first));
 		first=false;
@@ -880,7 +1005,7 @@ void orthogonality(){
 	double r,phi;
 	int conf;
 	stringstream filename;
-	filename<<"eigen"<<supermod(control.get_dsum(0)/2,Ne)<<"_"<<supermod(control.get_dsum(1)/2,Ne)+Ne;
+	filename<<"eigen2";//<<supermod(control.get_dsum(0)/2,Ne)<<"_"<<supermod(control.get_dsum(1)/2,Ne)+Ne;
 	ifstream eigen(filename.str().c_str());
 	cout<<filename.str()<<endl;
 	Eigen::VectorXcd EDstate(control.lnd_states.size());
@@ -893,4 +1018,101 @@ void orthogonality(){
 		cout<<abs(overlap)<<endl;
 	}
 }
+void CFL_berry(){
+	//make a TorusSolver object that has x momentum 1
+	int NPhi,nks,Ne;
 
+	Eigen::SelfAdjointEigenSolver<Eigen::Matrix<complex<double>,-1,-1> > es;
+	Eigen::MatrixXcd Hnn;
+
+	ifstream kfile("batch_ds");
+	kfile>>NPhi>>Ne;
+	vector<vector<int> > temp(Ne,vector<int>(2));
+	vector< vector< vector<int> > > ds,ds2;
+	while(true){
+		for(int i=0;i<Ne;i++) kfile>>temp[i][0]>>temp[i][1];
+		if(kfile.eof()) break;
+		ds.push_back(temp);
+		for(int i=0;i<Ne;i++) temp[i][1]++;
+		ds2.push_back(temp);
+	}
+	vector< vector<int> >charges(ds.size(),vector<int>(2,0));
+	for(int i=0;i<(signed)ds.size();i++){
+		for(int j=0;j<Ne;j++){
+			for(int l=0;l<2;l++) charges[i][l]+=ds[i][j][l];
+		}
+		charges[i][0]=supermod(charges[i][0],NPhi);
+		charges[i][1]=supermod(charges[i][1],NPhi);
+	}
+	kfile.close();		
+	nks=ds.size();
+	vector<Eigen::VectorXcd> vecs1(nks), vecs2(nks);
+	complex<double> tempz,overlap;
+	Eigen::MatrixXcd tempmat=Eigen::MatrixXcd::Zero(2,2),product;
+	product=Eigen::MatrixXcd::Identity(2,2);
+	vector<Eigen::SparseMatrix< complex<double> > > rhos11(nks), rhos12(nks), rhos21(nks), rhos22(nks);
+
+	int dkx,dky; 
+	for(unsigned int k=0;k<(unsigned)nks;k++){
+		NewChanger H1(NPhi, Ne, 0, "CFL", ds[k]), H2(NPhi, Ne, 0, "CFL", ds2[k]);
+
+		dkx=charges[(k+1)%ds.size()][0]-charges[k][0];
+		dky=charges[(k+1)%ds.size()][1]-charges[k][1];
+		if(dky<0) dky+=NPhi;
+		if(dkx<0) dkx+=NPhi;
+		for(int i=0;i<Ne;i++) cout<<"("<<ds[k][i][0]<<","<<ds[k][i][1]<<")" ;
+		cout<<endl;
+		for(int i=0;i<Ne;i++) cout<<"("<<ds2[k][i][0]<<","<<ds2[k][i][1]<<")" ;
+		cout<<endl;
+		cout<<charges[k][0]<<" "<<charges[k][1]<<" "<<dkx<<" "<<dky<<endl;
+
+		rhos11[k]=H1.density_operator(dkx,dky);
+//		cout<<rhos11[k]<<endl;
+		rhos12[k]=H1.density_operator(dkx,(dky+NPhi/2)%NPhi);
+		rhos22[k]=H2.density_operator(dkx,dky);
+		rhos21[k]=H2.density_operator(dkx,(dky+NPhi/2)%NPhi);
+
+		vecs1[k]=H1.run(false);
+		vecs2[k]=H2.run(false);
+
+		//***COMPARE TO ED STATE***///
+		cout<<"overlaps with ED ground states"<<endl;
+		double r,phi;
+		int conf;
+		stringstream filename;
+		filename<<"eigen"<<k;
+		ifstream eigen(filename.str().c_str());
+		cout<<filename.str()<<endl;
+		Eigen::VectorXcd EDstate(H1.lnd_states.size());
+		for(int i=0; i<(signed)H1.lnd_states.size(); i++){
+			eigen>>r>>phi>>conf;
+			EDstate(i)=polar(r,phi*M_PI);
+		}
+		overlap=vecs1[k].dot(EDstate);
+		cout<<abs(overlap)<<endl;
+
+	}
+	for(unsigned int k=0;k<ds.size();k++){
+//		tempz=vecs[k].dot(vecs[(k+1)%ds.size()].conjugate());
+		cout<<rhos11[k].rows()<<" "<<rhos11[k].cols()<<" "<<vecs1[k].size()<<" "<<vecs1[(k+1)%ds.size()].size()<<endl;
+		tempz=vecs1[(k+1)%ds.size()].adjoint()*rhos11[k]*vecs1[k];
+		cout<<abs(tempz)<<" "<<arg(tempz)<<endl;
+		tempmat(0,0)=tempz;
+		
+		tempz=vecs2[(k+1)%ds.size()].adjoint()*rhos22[k]*vecs2[k];
+		cout<<abs(tempz)<<" "<<arg(tempz)<<endl;
+		tempmat(1,1)=tempz;
+		
+		tempz=vecs2[(k+1)%ds.size()].adjoint()*rhos12[k]*vecs1[k];
+		cout<<abs(tempz)<<" "<<arg(tempz)<<endl;
+		tempmat(0,1)=tempz;
+		
+		tempz=vecs1[(k+1)%ds.size()].adjoint()*rhos21[k]*vecs2[k];
+		cout<<abs(tempz)<<" "<<arg(tempz)<<endl;
+		tempmat(1,0)=tempz;
+		cout<<endl;	
+		product*=tempmat;
+	}
+	cout<<product<<endl;
+}
+	
