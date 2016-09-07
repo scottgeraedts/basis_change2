@@ -12,7 +12,7 @@
 #include <iomanip>
 #include "MersenneTwister.h"
 
-#define NBITS 10
+#define NBITS 16
 
 using namespace std;
 

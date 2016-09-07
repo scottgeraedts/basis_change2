@@ -489,29 +489,30 @@ void energy_variance(){
 		//relation between these and NewChanger parameters dx,dy: 
 		//kx = dy+8
 		//ky = dx+8
-		kx=(Dbar[1])%NPhi;
-		ky=(Dbar[0]+Ne)%NPhi;
+		if(Ne%2) kx=supermod(Dbar[1],NPhi);
+		else kx=supermod(Dbar[1]+Ne,NPhi);
+		ky=supermod(Dbar[0]+Ne,NPhi);
 
-	 
 		TorusSolver< complex<double> > T(kx);
+		T.store_sparse=true;
 		T.make_Hnn();
 
 		T.makeShrinker(ky);
 		//cout<<H1.shrinkMatrix.rows()<<" "<<H1.shrinkMatrix.cols()<<" "<<H1.EigenDense.rows()<<endl;
-		Hnn=T.shrinkMatrix * T.EigenDense * T.shrinkMatrix.adjoint();
+		Hnn=T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint();
 
 		es.compute(Hnn);
 		ev1=T.shrinkMatrix.adjoint()*es.eigenvectors().col(0);
 		states=T.get_states();
 //		cout<<"Ed state"<<endl;
-//		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<10>)states[i]<<endl;
+//		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<endl;
 		cout<<"ED energy: "<<es.eigenvalues()(0)/(1.*Ne)+T.self_energy()<<endl;
 		
 		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,ev1)<<endl;
 
-		temp_mult=vec0.adjoint()*T.EigenDense*T.EigenDense*vec0;
+		temp_mult=vec0.adjoint()*T.EigenSparse*T.EigenSparse*vec0;
 		E2=real(temp_mult);
-		temp_mult=vec0.adjoint()*T.EigenDense*vec0;
+		temp_mult=vec0.adjoint()*T.EigenSparse*vec0;
 		E=real(temp_mult);
 		temp_mult=vec0.dot(ev1);
 		cout<<"overlap with ED state: "<<abs(temp_mult)<<endl;
