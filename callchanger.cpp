@@ -499,7 +499,9 @@ void energy_variance(){
 
 		T.makeShrinker(ky);
 		//cout<<H1.shrinkMatrix.rows()<<" "<<H1.shrinkMatrix.cols()<<" "<<H1.EigenDense.rows()<<endl;
-		Hnn=T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint();
+//		Hnn=Eigen::MatrixXcd(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
+		Eigen::SparseMatrix<complex <double> > tempMat=(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
+		Hnn=Eigen::MatrixXcd(tempMat);
 
 		es.compute(Hnn);
 		ev1=T.shrinkMatrix.adjoint()*es.eigenvectors().col(0);
