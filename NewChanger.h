@@ -12,6 +12,8 @@
 #include <iomanip>
 #include "MersenneTwister.h"
 
+#define NBITS 10
+
 using namespace std;
 
 extern"C"{
@@ -24,11 +26,11 @@ extern"C"{
 class NewChanger{
 
 public:
-	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, double ddbarx, double ddbary);
+	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, double ddbarx=0, double ddbary=0);
 	NewChanger();
 	Eigen::SparseMatrix< complex<double> > density_operator(int mx, int my);	
-	void reset_ds(vector <vector <int> > ds, double ddbarx, double ddbary);
-	Eigen::VectorXcd run(bool print, bool compute_A);
+	void reset_ds(vector <vector <int> > ds, double ddbarx=0, double ddbary=0);
+	Eigen::VectorXcd run(bool print, bool compute_A=true);
 	void test();
 	void symmetry_checks();
 	vector<unsigned int> lnd_states,mb_states;
