@@ -1,4 +1,5 @@
 #include "callchanger.h"
+ArpackError::ErrorCode ArpackError::code = NO_ERRORS;
 int main(){
 
 //	int NPhi,Ne,manybody_COM;
@@ -451,9 +452,9 @@ void energy_variance(){
 	Eigen::VectorXcd vec0;
 //	TorusSolver<complex <double> > T(0);
 	Eigen::MatrixXcd Hnn;
-	double E2,E;
+	double E2,E,ED_E;
 	complex<double> temp_mult;
-	Eigen::VectorXcd ev1;
+	Eigen::VectorXcd ev1,EDout;
 	Eigen::SelfAdjointEigenSolver<Eigen::Matrix<complex<double>,-1,-1> > es;
 		
 	kfile>>NPhi>>Ne;	
@@ -501,14 +502,28 @@ void energy_variance(){
 		//cout<<H1.shrinkMatrix.rows()<<" "<<H1.shrinkMatrix.cols()<<" "<<H1.EigenDense.rows()<<endl;
 //		Hnn=Eigen::MatrixXcd(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
 		Eigen::SparseMatrix<complex <double> > tempMat=(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
-		Hnn=Eigen::MatrixXcd(tempMat);
 
-		es.compute(Hnn);
-		ev1=T.shrinkMatrix.adjoint()*es.eigenvectors().col(0);
+		if(Ne>5){
+#ifdef USE_CLUSTER
+			MatrixWithProduct3 mat2(tempMat.rows());
+			mat2.set(tempMat);
+			mat2.eigenvalues(5);
+			EDout=Std_To_Eigen(mat2.eigvecs[0]);
+			ED_E=mat2.eigvals[0];
+#else
+			cout<<"you need to use the cluster to use arpack"<<endl;
+#endif
+		}else{
+			Hnn=Eigen::MatrixXcd(tempMat);
+			es.compute(Hnn);
+			EDout=es.eigenvectors().col(0);
+			ED_E=es.eigenvalues()(0);
+		}	
+		ev1=T.shrinkMatrix.adjoint()*EDout;
 		states=T.get_states();
 //		cout<<"Ed state"<<endl;
 //		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<endl;
-		cout<<"ED energy: "<<es.eigenvalues()(0)/(1.*Ne)+T.self_energy()<<endl;
+		cout<<"ED energy: "<<ED_E/(1.*Ne)+T.self_energy()<<endl;
 		
 		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,ev1)<<endl;
 
