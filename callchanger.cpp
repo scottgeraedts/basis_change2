@@ -1,5 +1,7 @@
 #include "callchanger.h"
+#ifdef USE_CLUSTER
 ArpackError::ErrorCode ArpackError::code = NO_ERRORS;
+#endif
 int main(){
 
 //	int NPhi,Ne,manybody_COM;
@@ -485,7 +487,7 @@ void energy_variance(){
 		cout<<"Dvar: "<<Dvar<<endl;
 		
 		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds);
-		vec0=control.run(false);
+		vec0=control.run(true);
 
 		//relation between these and NewChanger parameters dx,dy: 
 		//kx = dy+8
@@ -503,7 +505,7 @@ void energy_variance(){
 //		Hnn=Eigen::MatrixXcd(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
 		Eigen::SparseMatrix<complex <double> > tempMat=(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
 
-		if(Ne>5){
+		if(Ne>10){
 #ifdef USE_CLUSTER
 			MatrixWithProduct3 mat2(tempMat.rows());
 			mat2.set(tempMat);
@@ -521,8 +523,8 @@ void energy_variance(){
 		}	
 		ev1=T.shrinkMatrix.adjoint()*EDout;
 		states=T.get_states();
-//		cout<<"Ed state"<<endl;
-//		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<endl;
+		cout<<"Ed state"<<endl;
+		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<endl;
 		cout<<"ED energy: "<<ED_E/(1.*Ne)+T.self_energy()<<endl;
 		
 		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,ev1)<<endl;

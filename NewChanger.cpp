@@ -76,7 +76,7 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	lnd_zeros=vector<double>(NPhi);
 	for(int i=0;i<NPhi;i++) lnd_zeros[i]=-0.5+(2*i+1)/(2.*NPhi);
 	
-	setup_mbl_zs("lines");
+	setup_mbl_zs("conserve_y");
 	//make stuff
 	set_l_(&NPhi, &L1, &L2);
 	setup_z_function_table_();
@@ -153,6 +153,7 @@ Eigen::VectorXcd NewChanger::run(bool print, bool compute_A){
 		make_landau_table();
 		make_Amatrix();
 	}
+	
 //*****SOLUTION***///
 	double outnorm;
 	Eigen::VectorXcd out;
@@ -415,6 +416,65 @@ void NewChanger::setup_mbl_zs(string type){
 			found=true;
 		}
 					
+	}else if(type=="conserve_y"){
+		//for this type, we randomly generate only n_lnd/Ne positions. Then we shift the y components of these by 1 Ne times
+		//the resulting thing *should* have a symmetry upon shifting all positions in the y direction
+		
+		//the landau basis have some states which transform into themselves under T_y, so here we make slightly more states than the landau basis
+		int n_sweeps=lnd_states.size()/Ne;
+		if (n_sweeps*Ne < (signed)lnd_states.size()) n_sweeps++;		
+		n_mb=n_sweeps*Ne;
+		
+		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
+		MTRand ran;
+	
+		vector<int> tempr(2);
+		for(int i=0;i<n_mb;i+=Ne){
+			while(found){ 
+				found=false;
+				found2=true;
+				//attempt to generate new set of zs
+				for(int x=0;x<Ne;x++){
+					//loop to avoid duplicates
+					while(found2){
+						found2=false;
+						mb_zs[i][x][0]=ran.randInt(NPhi-1);
+						mb_zs[i][x][1]=ran.randInt(NPhi-1);
+						for(int y=0;y<x;y++){
+							if(mb_zs[i][x]==mb_zs[i][y]){
+								found2=true;
+								break;
+							}
+						}
+					}
+					found2=true;
+				}
+				//check to make sure we haven't made the same set of zs twice
+				for(int j=0;j<i;j++){
+					if(mb_zs[i]==mb_zs[j]){
+						found=true;
+						break;
+					}
+				}
+
+				//we've found a good one, now make Ne copies of it
+				for(int j=0;j<Ne;j++){
+					for(int x=0;x<Ne;x++){
+						mb_zs[i+j][x][0]=supermod(mb_zs[i][x][0]+j,Ne);
+						mb_zs[i+j][x][1]=mb_zs[i][x][1];
+					}
+					//check to make sure we didn't accidentally make smth like 0101 
+					for(int k=i;k<j;k++){
+						if(mb_zs[i+j]==mb_zs[k]){
+							found=true;
+							break;
+						}
+					}
+				}
+			}
+			found=true;
+			
+		}
 	}else{
 		cout<<"invalid mbl zs type"<<endl;
 		exit(0);
@@ -524,7 +584,7 @@ void NewChanger::make_landau_symmetry_y(){
 		if(it!=lnd_states.end()){
 			newindex=it-lnd_states.begin();
 			if(invNu%2) temp*=-1.;
-			Ty_lnd(i,newindex)=temp;//*polar(1.,-2*M_PI*(yst complex<double> +y)/(1.*NPhi));
+			Ty_lnd(i,newindex)=temp;//*polar(1.,-2*M_PI*(ystart+y)/(1.*NPhi));
 		}else{
 			cout<<"state: "<<(bitset<NBITS>)newstate<<" not found"<<endl;
 			exit(0);
