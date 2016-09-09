@@ -150,7 +150,6 @@ void NewChanger::symmetry_checks(){
 }
 Eigen::VectorXcd NewChanger::run(bool print, bool compute_A){
 	make_manybody_vector();
-//	cout<<manybody_vector<<endl;
 	if(compute_A){
 		make_landau_table();
 		make_Amatrix();
@@ -202,7 +201,6 @@ Eigen::VectorXcd NewChanger::run(bool print, bool compute_A){
 //	cout<<sym_A<<endl;
 //	cout<<endl;
 
-	makeShrinker(supermod(dsum[0]/invNu+Ne,NPhi));
 	if(zs_type=="conserve_y" or zs_type=="conserve_y_zs") Amatrix=Amatrix*shrinkMatrix.adjoint();
 	out=Amatrix.fullPivHouseholderQr().solve(manybody_vector);	
 	if(!manybody_vector.isApprox(Amatrix*out,1e-4)) cout<<"*******************bad solution!****************"<<endl;
@@ -437,8 +435,10 @@ void NewChanger::setup_mbl_zs(){
 		//the resulting thing *should* have a symmetry upon shifting all positions in the y direction
 		
 		//the landau basis have some states which transform into themselves under T_y, so here we make slightly more states than the landau basis
-		int n_sweeps=lnd_states.size()/Ne;
-		if (n_sweeps*Ne < (signed)lnd_states.size()) n_sweeps++;		
+		makeShrinker(supermod(dsum[0]/invNu+Ne,NPhi));
+
+		int n_sweeps=n_lnd/Ne;
+		if (n_sweeps*Ne < n_lnd) n_sweeps++;		
 		n_mb=n_sweeps*Ne;
 		
 		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
