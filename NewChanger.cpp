@@ -150,21 +150,21 @@ void NewChanger::symmetry_checks(){
 }
 Eigen::VectorXcd NewChanger::run(bool print, bool compute_A){
 	make_manybody_vector();
-	cout<<manybody_vector<<endl;
+//	cout<<manybody_vector<<endl;
 	if(compute_A){
 		make_landau_table();
 		make_Amatrix();
 	}
-	cout<<Amatrix<<endl;
-	for(int i=0;i<n_mb;i++){
-		for(int j=0; j<n_lnd; j++) cout<<abs(Amatrix(i,j))/M_PI<<" ";
-		cout<<endl;
-	}
-	cout<<endl;
-	for(int i=0;i<n_mb;i++){
-		for(int j=0; j<n_lnd; j++) cout<<arg(Amatrix(i,j))/M_PI<<" ";
-		cout<<endl;
-	}
+//	cout<<Amatrix<<endl;
+//	for(int i=0;i<n_mb;i++){
+//		for(int j=0; j<n_lnd; j++) cout<<abs(Amatrix(i,j))/M_PI<<" ";
+//		cout<<endl;
+//	}
+//	cout<<endl;
+//	for(int i=0;i<n_mb;i++){
+//		for(int j=0; j<n_lnd; j++) cout<<arg(Amatrix(i,j))/M_PI<<" ";
+//		cout<<endl;
+//	}
 //*****SOLUTION***///
 	double outnorm;
 	Eigen::VectorXcd out;
@@ -202,18 +202,18 @@ Eigen::VectorXcd NewChanger::run(bool print, bool compute_A){
 //	cout<<sym_A<<endl;
 //	cout<<endl;
 
-//	makeShrinker(supermod(dsum[0]/invNu+Ne,NPhi));
-//	Amatrix=Amatrix*shrinkMatrix.adjoint();
+	makeShrinker(supermod(dsum[0]/invNu+Ne,NPhi));
+	if(zs_type=="conserve_y" or zs_type=="conserve_y_zs") Amatrix=Amatrix*shrinkMatrix.adjoint();
 	out=Amatrix.fullPivHouseholderQr().solve(manybody_vector);	
+	if(!manybody_vector.isApprox(Amatrix*out,1e-4)) cout<<"*******************bad solution!****************"<<endl;
+	if(zs_type=="conserve_y" or zs_type=="conserve_y_zs") out=shrinkMatrix.adjoint()*out;
 	outnorm=out.norm();
 	if(print){
 		cout<<"final version"<<endl;
 		cout<<outnorm<<endl;
-		if(!manybody_vector.isApprox(Amatrix*out,1e-4)) cout<<"*******************bad solution!****************"<<endl;
-		for(int i=0;i<n_lnd;i++)
+		for(int i=0;i<out.size();i++)
 			if(norm(out(i))>-1) cout<<abs(out(i))/outnorm<<" "<<arg(out(i))/M_PI<<" "<<(bitset<NBITS>)lnd_states[i]<<endl;
 	}
-//	out=shrinkMatrix.adjoint()*out;
 	return out/outnorm;
 	
 //	Eigen::FullPivHouseholderQR<Eigen::MatrixXcd> qr(Amatrix);
@@ -439,7 +439,7 @@ void NewChanger::setup_mbl_zs(){
 		//the landau basis have some states which transform into themselves under T_y, so here we make slightly more states than the landau basis
 		int n_sweeps=lnd_states.size()/Ne;
 		if (n_sweeps*Ne < (signed)lnd_states.size()) n_sweeps++;		
-		n_mb=n_sweeps*Ne*4;
+		n_mb=n_sweeps*Ne;
 		
 		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
 		
@@ -495,11 +495,11 @@ void NewChanger::setup_mbl_zs(){
 		cout<<"invalid mbl zs type"<<endl;
 		exit(0);
 	}
-	cout<<"n_mb, n_lnd: "<<n_mb<<" "<<n_lnd<<endl;
-	for(int i=0;i<n_mb;i++){
-		for(int x=0;x<Ne;x++) cout<<"("<<mb_zs[i][x][0]<<","<<mb_zs[i][x][1]<<") ";
-		cout<<endl;
-	}	
+//	cout<<"n_mb, n_lnd: "<<n_mb<<" "<<n_lnd<<endl;
+//	for(int i=0;i<n_mb;i++){
+//		for(int x=0;x<Ne;x++) cout<<"("<<mb_zs[i][x][0]<<","<<mb_zs[i][x][1]<<") ";
+//		cout<<endl;
+//	}	
 }
 complex<double> NewChanger::landau_basis(int ix, int iy, int index){
 	complex<double> out=1., temp;
@@ -534,7 +534,7 @@ void NewChanger::make_manybody_vector(){
 void NewChanger::make_Amatrix(){
 	Amatrix=Eigen::MatrixXcd::Zero(n_mb,n_lnd);
 	Eigen::MatrixXcd detMatrix(Ne,Ne);
-	Eigen::FullPivLU<Eigen::MatrixXcd> LUsolver;
+	Eigen::PartialPivLU<Eigen::MatrixXcd> LUsolver;
 	vector<int> lnd_zs;
 	double temp;
 

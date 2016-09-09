@@ -492,7 +492,7 @@ void energy_variance(){
 		cout<<"Dvar: "<<Dvar<<endl;
 		
 		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,0,0,zs_type);
-		vec0=control.run(true);
+		vec0=control.run(false);
 
 		//relation between these and NewChanger parameters dx,dy: 
 		//kx = dy+8
