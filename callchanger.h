@@ -5,9 +5,7 @@
 #include <Eigen/Sparse>
 #include "TorusSolver.h"
 #include "shrinker.h"
-#ifdef USE_CLUSTER
-#include "matprod3.h"
-#endif
+
 
 void energy_variance();
 double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control,  const Eigen::VectorXcd &vec0);

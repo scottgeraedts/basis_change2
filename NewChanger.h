@@ -26,7 +26,7 @@ extern"C"{
 class NewChanger{
 
 public:
-	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, double ddbarx=0, double ddbary=0);
+	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, double ddbarx=0, double ddbary=0, string zs_type="random");
 	NewChanger();
 	Eigen::SparseMatrix< complex<double> > density_operator(int mx, int my);	
 	void reset_ds(vector <vector <int> > ds, double ddbarx=0, double ddbary=0);
@@ -35,6 +35,9 @@ public:
 	void symmetry_checks();
 	vector<unsigned int> lnd_states,mb_states;
 	int get_dsum(int dir);
+	
+	void makeShrinker(int nx);
+	Eigen::SparseMatrix<complex <double> > shrinkMatrix;
 private:
 	void make_manybody_vector();
 	void make_manybody_symmetry_x();
@@ -43,7 +46,7 @@ private:
 	void make_landau_symmetry_y();
 	void make_Amatrix();
 	void make_landau_table();
-	void setup_mbl_zs(string type);
+	void setup_mbl_zs();
 	
 	complex<double> get_wf(const vector< vector<int> > &zs);
 	complex<double> landau_basis( int ix, int iy, int index);
@@ -69,7 +72,7 @@ private:
 	double ddbarx, ddbary;
 	int n_mb, n_lnd,copies, ystart,ystep;
 	complex<double> L1,L2;
-	string type;
+	string type,zs_type;
 	int lnd_charge;
 	bool symmetry_contract;
 };
