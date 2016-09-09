@@ -458,8 +458,13 @@ void energy_variance(){
 	complex<double> temp_mult;
 	Eigen::VectorXcd ev1,EDout;
 	Eigen::SelfAdjointEigenSolver<Eigen::Matrix<complex<double>,-1,-1> > es;
+	
+	double self_energy;
+	bool have_self_energy=false;	
+	string zs_type;
 		
-	kfile>>NPhi>>Ne;	
+	kfile>>NPhi>>Ne;
+	kfile>>zs_type;	
 	cfl_ds=vector< vector<int> >( Ne, vector<int>(2));
 	while(true){
 		for(int x=0;x<Ne;x++){
@@ -486,7 +491,7 @@ void energy_variance(){
 		Dvar/=sqrt(Ne);
 		cout<<"Dvar: "<<Dvar<<endl;
 		
-		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds);
+		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,0,0,zs_type);
 		vec0=control.run(true);
 
 		//relation between these and NewChanger parameters dx,dy: 
@@ -523,9 +528,11 @@ void energy_variance(){
 		}	
 		ev1=T.shrinkMatrix.adjoint()*EDout;
 		states=T.get_states();
-		cout<<"Ed state"<<endl;
-		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<endl;
-		cout<<"ED energy: "<<ED_E/(1.*Ne)+T.self_energy()<<endl;
+//		cout<<"Ed state"<<endl;
+//		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<endl;
+
+		if(!have_self_energy) self_energy=T.self_energy();
+		cout<<"ED energy: "<<ED_E/(1.*Ne)+self_energy<<endl;
 		
 		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,ev1)<<endl;
 
@@ -535,7 +542,7 @@ void energy_variance(){
 		E=real(temp_mult);
 		temp_mult=vec0.dot(ev1);
 		cout<<"overlap with ED state: "<<abs(temp_mult)<<endl;
-		cout<<"energy, variance: "<<E/(1.*Ne)+T.self_energy()<<" "<<(E2-E*E)/(1.*Ne*Ne)<<endl;
+		cout<<"energy, variance: "<<E/(1.*Ne)+self_energy<<" "<<(E2-E*E)/(1.*Ne*Ne)<<endl;
 		cout<<"PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,vec0)<<endl;
 		cout<<endl;		
 	}

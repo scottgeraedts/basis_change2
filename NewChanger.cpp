@@ -3,7 +3,7 @@
 NewChanger::NewChanger(){
 
 }
-NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, double ddbarx_t, double ddbary_t):
+NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, double ddbarx_t, double ddbary_t, string zs_type_t):
 	NPhi(NPhi_t),Ne(Ne_t),manybody_COM(manybody_COM_t),type(type_t){
 
 	invNu=NPhi/Ne;
@@ -76,7 +76,8 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	lnd_zeros=vector<double>(NPhi);
 	for(int i=0;i<NPhi;i++) lnd_zeros[i]=-0.5+(2*i+1)/(2.*NPhi);
 	
-	setup_mbl_zs("conserve_y");
+	zs_type=zs_type_t;
+	setup_mbl_zs();
 	//make stuff
 	set_l_(&NPhi, &L1, &L2);
 	setup_z_function_table_();
@@ -149,11 +150,21 @@ void NewChanger::symmetry_checks(){
 }
 Eigen::VectorXcd NewChanger::run(bool print, bool compute_A){
 	make_manybody_vector();
+	cout<<manybody_vector<<endl;
 	if(compute_A){
 		make_landau_table();
 		make_Amatrix();
 	}
-	
+	cout<<Amatrix<<endl;
+	for(int i=0;i<n_mb;i++){
+		for(int j=0; j<n_lnd; j++) cout<<abs(Amatrix(i,j))/M_PI<<" ";
+		cout<<endl;
+	}
+	cout<<endl;
+	for(int i=0;i<n_mb;i++){
+		for(int j=0; j<n_lnd; j++) cout<<arg(Amatrix(i,j))/M_PI<<" ";
+		cout<<endl;
+	}
 //*****SOLUTION***///
 	double outnorm;
 	Eigen::VectorXcd out;
@@ -191,15 +202,18 @@ Eigen::VectorXcd NewChanger::run(bool print, bool compute_A){
 //	cout<<sym_A<<endl;
 //	cout<<endl;
 
-	out=Amatrix.colPivHouseholderQr().solve(manybody_vector);	
+//	makeShrinker(supermod(dsum[0]/invNu+Ne,NPhi));
+//	Amatrix=Amatrix*shrinkMatrix.adjoint();
+	out=Amatrix.fullPivHouseholderQr().solve(manybody_vector);	
 	outnorm=out.norm();
 	if(print){
 		cout<<"final version"<<endl;
 		cout<<outnorm<<endl;
-		if(!manybody_vector.isApprox(Amatrix*out,1e-9)) cout<<"*******************bad solution!****************"<<endl;
+		if(!manybody_vector.isApprox(Amatrix*out,1e-4)) cout<<"*******************bad solution!****************"<<endl;
 		for(int i=0;i<n_lnd;i++)
 			if(norm(out(i))>-1) cout<<abs(out(i))/outnorm<<" "<<arg(out(i))/M_PI<<" "<<(bitset<NBITS>)lnd_states[i]<<endl;
 	}
+//	out=shrinkMatrix.adjoint()*out;
 	return out/outnorm;
 	
 //	Eigen::FullPivHouseholderQR<Eigen::MatrixXcd> qr(Amatrix);
@@ -336,12 +350,15 @@ complex<double> NewChanger::modded_lattice_z(int x, int y){// why need this func
 	else return out;
 }
 
-void NewChanger::setup_mbl_zs(string type){
+void NewChanger::setup_mbl_zs(){
 
 	bool symmetry_contract=true;
 	bool found,found2;
+	int seed=0;
+	MTRand ran;
+	ran.seed(seed);
 
-	if(type=="lines"){	
+	if(zs_type=="lines"){	
 		//make the set of all possible positions, for mb side
 		int tempbit;
 		vector<unsigned int>::iterator it;
@@ -378,10 +395,9 @@ void NewChanger::setup_mbl_zs(string type){
 				}
 			}
 		}
-	}else if(type=="random"){
+	}else if(zs_type=="random"){
 		n_mb=lnd_states.size();
 		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
-		MTRand ran;
 	
 		vector<int> tempr(2);
 		found=true;
@@ -416,18 +432,17 @@ void NewChanger::setup_mbl_zs(string type){
 			found=true;
 		}
 					
-	}else if(type=="conserve_y"){
+	}else if(zs_type=="conserve_y" or zs_type=="conserve_y_zs"){
 		//for this type, we randomly generate only n_lnd/Ne positions. Then we shift the y components of these by 1 Ne times
 		//the resulting thing *should* have a symmetry upon shifting all positions in the y direction
 		
 		//the landau basis have some states which transform into themselves under T_y, so here we make slightly more states than the landau basis
 		int n_sweeps=lnd_states.size()/Ne;
 		if (n_sweeps*Ne < (signed)lnd_states.size()) n_sweeps++;		
-		n_mb=n_sweeps*Ne;
+		n_mb=n_sweeps*Ne*4;
 		
 		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
-		MTRand ran;
-	
+		
 		vector<int> tempr(2);
 		for(int i=0;i<n_mb;i+=Ne){
 			while(found){ 
@@ -442,6 +457,7 @@ void NewChanger::setup_mbl_zs(string type){
 						mb_zs[i][x][1]=ran.randInt(NPhi-1);
 						for(int y=0;y<x;y++){
 							if(mb_zs[i][x]==mb_zs[i][y]){
+								//cout<<"match found"<<endl;
 								found2=true;
 								break;
 							}
@@ -460,8 +476,8 @@ void NewChanger::setup_mbl_zs(string type){
 				//we've found a good one, now make Ne copies of it
 				for(int j=0;j<Ne;j++){
 					for(int x=0;x<Ne;x++){
-						mb_zs[i+j][x][0]=supermod(mb_zs[i][x][0]+j,Ne);
-						mb_zs[i+j][x][1]=mb_zs[i][x][1];
+						mb_zs[i+j][x][1]=supermod(mb_zs[i][x][1]+j*(NPhi/Ne),NPhi);
+						mb_zs[i+j][x][0]=mb_zs[i][x][0];
 					}
 					//check to make sure we didn't accidentally make smth like 0101 
 					for(int k=i;k<j;k++){
@@ -479,11 +495,11 @@ void NewChanger::setup_mbl_zs(string type){
 		cout<<"invalid mbl zs type"<<endl;
 		exit(0);
 	}
-//	cout<<"n_mb: "<<n_mb<<endl;
-//	for(int i=0;i<n_mb;i++){
-//		for(int x=0;x<Ne;x++) cout<<"("<<mb_zs[i][x][0]<<","<<mb_zs[i][x][1]<<") ";
-//		cout<<endl;
-//	}	
+	cout<<"n_mb, n_lnd: "<<n_mb<<" "<<n_lnd<<endl;
+	for(int i=0;i<n_mb;i++){
+		for(int x=0;x<Ne;x++) cout<<"("<<mb_zs[i][x][0]<<","<<mb_zs[i][x][1]<<") ";
+		cout<<endl;
+	}	
 }
 complex<double> NewChanger::landau_basis(int ix, int iy, int index){
 	complex<double> out=1., temp;
@@ -520,19 +536,92 @@ void NewChanger::make_Amatrix(){
 	Eigen::MatrixXcd detMatrix(Ne,Ne);
 	Eigen::FullPivLU<Eigen::MatrixXcd> LUsolver;
 	vector<int> lnd_zs;
-	
-	for(int j=0;j<n_lnd;j++){
-		lnd_zs=bitset_to_pos(lnd_states[j],NPhi);
-		for(int i=0;i<n_mb;i++){
-			for(int x=0;x<Ne;x++){
-				for(int y=0;y<Ne;y++){
-//					detMatrix(x,y)=landau_basis(mb_zs[i][x],lnd_zs[y]);
-					detMatrix(x,y)=lnd_table[lnd_zs[y]] [mb_zs[i][x][0]] [mb_zs[i][x][1]];
+	double temp;
+
+	if(zs_type=="conserve_y"){
+		int xsum,count,sign,newstate,oldstate,newindex,jsize;
+		vector<unsigned int>::iterator it;
+		vector< vector<int> > j_copies(n_lnd), j_signs(n_lnd);
+		vector<int> sites;
+
+		for(int j=0;j<n_lnd;j++){
+			//first, make a vector of all the states which are just this state, shifted by invNu
+			//also keep track of any signs coming from permutations
+			
+			//cout<<(bitset<NBITS>)lnd_states[j]<<endl;
+			newstate=lnd_states[j];
+			j_copies[j].push_back(j);
+			j_signs[j].push_back(1);
+			for(int i=0;i<Ne;i++){
+				temp=1;
+				for(int k=0;k<invNu;k++){
+					oldstate=newstate;
+					newstate=0;
+					sites=bitset_to_pos(oldstate,NPhi);
+					for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | 1<<((sites[j]+1)%NPhi);
+					if (newstate<oldstate && Ne%2==0) temp*=-1;
+				}
+//				if(newstate==(signed)lnd_states[j]) break;
+				it=find(lnd_states.begin(),lnd_states.end(),newstate);
+				if(it!=lnd_states.end()){
+					newindex=it-lnd_states.begin();
+					if(invNu%2) temp*=-1.;
+					j_copies[j].push_back(newindex);
+					//cout<<newindex<<" "<<(bitset<NBITS>)newstate<<endl;
+					j_signs[j].push_back(temp);
+				}else{
+					cout<<"state: "<<(bitset<NBITS>)newstate<<" not found"<<endl;
+					exit(0);
 				}
 			}
-			LUsolver.compute(detMatrix);
-			Amatrix(i,j)=LUsolver.determinant()*pow(0.2,Ne*Ne);
+			jsize=j_copies[j].size();
+			//cout<<jsize<<endl<<endl;
+		
+			//now fill in the A matrix			
+			lnd_zs=bitset_to_pos(lnd_states[j],NPhi);
+			for(int i=0;i<n_mb;i+=Ne){
+				xsum=0;
+				//for the first row of each set of Ne rows, have to calculate the determinants explicitly
+				for(int x=0;x<Ne;x++){
+					xsum+=mb_zs[i][x][0];
+					for(int y=0;y<Ne;y++){
+						detMatrix(x,y)=lnd_table[lnd_zs[y]] [mb_zs[i][x][0]] [mb_zs[i][x][1]];
+					}
+				}										
+				LUsolver.compute(detMatrix);
+				Amatrix(i,j)=LUsolver.determinant()*pow(0.2,Ne*Ne);
+
+				//for the other rows, just multiply the first row by a phase!
+				for(int k=1;k<Ne;k++){
+					count=0;
+					for(int x=0;x<Ne;x++){
+						if(mb_zs[i+k-1][x][1]>=NPhi-invNu) count+=mb_zs[i+k-1][x][0];
+						//if(xsum%2==0 && mb_zs[i+k-1][x][1]>=NPhi-2*invNu) count++;
+					}
+					sign=1;
+					if(count%2) sign=-1;
+					//cout<<sign<<" "<<xsum*2/(1.*NPhi)<<" "<<j_signs[j][k%jsize]<<endl;
+					Amatrix(i+k,j_copies[j][k%jsize])=(double)(j_signs[j][k%jsize]*sign)*polar(1.,-xsum*2.*M_PI/(1.*NPhi))*Amatrix(i+k-1,j_copies[j][(k-1)%jsize]);
+				}
+			}
 		}
+		
+	}else{
+	
+		for(int j=0;j<n_lnd;j++){
+			lnd_zs=bitset_to_pos(lnd_states[j],NPhi);
+			for(int i=0;i<n_mb;i++){
+				for(int x=0;x<Ne;x++){
+					for(int y=0;y<Ne;y++){
+	//					detMatrix(x,y)=landau_basis(mb_zs[i][x],lnd_zs[y]);
+						detMatrix(x,y)=lnd_table[lnd_zs[y]] [mb_zs[i][x][0]] [mb_zs[i][x][1]];
+					}
+				}
+				LUsolver.compute(detMatrix);
+				Amatrix(i,j)=LUsolver.determinant()*pow(0.2,Ne*Ne);
+			}
+		}
+		
 	}
 }
 
@@ -729,5 +818,56 @@ Eigen::SparseMatrix< complex<double> > NewChanger::density_operator(int my, int 
 	rho.setFromTriplets(triplets.begin(),triplets.end());
 	if(verbose>1) cout<<rho<<endl;
 	return rho;				
+}
+
+//make shrinking matrix
+void NewChanger::makeShrinker(int nx){
+	vector<Eigen::Triplet< complex<double> > > triplets;
+	vector<Eigen::Triplet< complex<double> > > temptrips;
+	vector<int> found_states;
+
+	int temp,index;
+	vector<unsigned int>::iterator it;
+	int col=0, phase,sign;
+
+//	for(int i=0;i<nStates;i++) cout<<(bitset<12>)states[i]<<endl;
+//	cout<<endl;
+	for(int i=0;i<n_lnd;i++){
+		if(find(found_states.begin(),found_states.end(),i)!=found_states.end()) continue;
+		
+		it=lnd_states.begin()+i;
+		temp=lnd_states[i];
+		phase=0;
+		temptrips.clear();
+		sign=1;
+		while(true){
+			index=it-lnd_states.begin();
+			temptrips.push_back( Eigen::Triplet< complex<double> >( col,index,polar(1.*sign,phase*2*M_PI/(1.*Ne)*nx ) ) );
+			found_states.push_back(index);
+//			cout<<(bitset<12>)states[index]<<" "<<phase*nx%Ne<<" "<<sign<<endl;
+			temp=cycle_M(temp,NPhi,invNu,sign);
+			if(temp==(signed)lnd_states[i]) break;
+			it=lower_bound(lnd_states.begin(),lnd_states.end(),temp);
+			phase++;
+			
+		}
+		//some cases only exist in certain momentum sectors (eg 0101) 
+		if( (Ne%2!=0 && nx%(Ne/temptrips.size()) ) || (Ne%2==0 && (nx-Ne/2)%(Ne/temptrips.size()) ) ) {
+//			cout<<"cancelled"<<endl;
+			 continue;
+		}
+
+		for(unsigned int j=0;j<temptrips.size();j++) 
+			temptrips[j]=Eigen::Triplet< complex<double> >(temptrips[j].col(), temptrips[j].row(), temptrips[j].value()/sqrt(temptrips.size()));
+		triplets.insert(triplets.end(),temptrips.begin(),temptrips.end());
+//		cout<<endl;
+		col++;
+	}
+	shrinkMatrix=Eigen::SparseMatrix< complex<double> >(n_lnd,col);
+//	cout<<"triplet size "<<triplets.size()<<endl;
+//	for(unsigned int j=0;j<triplets.size();j++)
+//		cout<<triplets[j].row()<<" "<<triplets[j].col()<<" "<<triplets[j].value()<<" "<<(bitset<10>)states[triplets[j].row()]<<endl;
+	shrinkMatrix.setFromTriplets(triplets.begin(),triplets.end());
+	shrinkMatrix=shrinkMatrix.adjoint();
 }
 
