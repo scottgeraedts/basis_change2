@@ -76,7 +76,7 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	lnd_zeros=vector<double>(NPhi);
 	for(int i=0;i<NPhi;i++) lnd_zeros[i]=-0.5+(2*i+1)/(2.*NPhi);
 	
-	setup_mbl_zs("lines");
+	setup_mbl_zs("random");
 	//make stuff
 	set_l_(&NPhi, &L1, &L2);
 	setup_z_function_table_();
