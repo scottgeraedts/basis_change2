@@ -201,10 +201,9 @@ Eigen::VectorXcd NewChanger::run(bool print, bool compute_A){
 //	cout<<sym_A<<endl;
 //	cout<<endl;
 
-	if(zs_type=="conserve_y" or zs_type=="conserve_y_zs") Amatrix=Amatrix*shrinkMatrix.adjoint();
-	out=Amatrix.fullPivHouseholderQr().solve(manybody_vector);	
+	out=Amatrix.colPivHouseholderQr().solve(manybody_vector);	
 	if(!manybody_vector.isApprox(Amatrix*out,1e-4)) cout<<"*******************bad solution!****************"<<endl;
-	if(zs_type=="conserve_y" or zs_type=="conserve_y_zs") out=shrinkMatrix.adjoint()*out;
+	if(zs_type=="conserve_y" or zs_type=="conserve_y_zs" or zs_type=="conserve_y_parallel") out=shrinkMatrix.adjoint()*out;
 	outnorm=out.norm();
 	if(print){
 		cout<<"final version"<<endl;
@@ -310,7 +309,7 @@ void NewChanger::reset_ds(vector< vector<int> > ds, double ddbarx_t, double ddba
 		dsum[0]+=cfl_ds[i][0]*invNu;
 		dsum[1]+=cfl_ds[i][1]*invNu;
 	}
-	if(old_dsum!=dsum[1]){
+	if(old_dsum%NPhi!=dsum[1]%NPhi){
 		cout<<"you reset the ds into a different charge sector!"<<endl;
 		exit(0);
 	}
@@ -393,7 +392,7 @@ void NewChanger::setup_mbl_zs(){
 				}
 			}
 		}
-	}else if(zs_type=="random"){
+	}else if(zs_type=="random" or zs_type=="parallel"){
 		n_mb=lnd_states.size();
 		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
 	
@@ -430,7 +429,7 @@ void NewChanger::setup_mbl_zs(){
 			found=true;
 		}
 					
-	}else if(zs_type=="conserve_y" or zs_type=="conserve_y_zs"){
+	}else if(zs_type=="conserve_y" or zs_type=="conserve_y_zs" or zs_type=="conserve_y_parallel"){
 		//for this type, we randomly generate only n_lnd/Ne positions. Then we shift the y components of these by 1 Ne times
 		//the resulting thing *should* have a symmetry upon shifting all positions in the y direction
 		
@@ -606,7 +605,113 @@ void NewChanger::make_Amatrix(){
 				}
 			}
 		}
-		
+	}else if(zs_type=="conserve_y_parallel"){
+		int newstate,oldstate,newindex,nthreads;
+		vector<unsigned int>::iterator it;
+		vector< vector<int> > j_copies(n_lnd), j_signs(n_lnd);
+		vector<int> sites;
+
+		//how many cores can we use
+		nthreads=omp_get_max_threads();
+		if(n_mb/Ne<nthreads) nthreads=n_mb/Ne;
+		cout<<"number of threads used: "<<nthreads<<endl;
+		omp_set_num_threads(nthreads);
+	    vector<Eigen::PartialPivLU<Eigen::MatrixXcd> > LUsolverPar(nthreads);
+	    vector<Eigen::MatrixXcd> detMatrixPar(nthreads,Eigen::MatrixXcd(Ne,Ne));
+			
+		for(int j=0;j<n_lnd;j++){
+			//first, make a vector of all the states which are just this state, shifted by invNu
+			//also keep track of any signs coming from permutations
+			
+			//cout<<(bitset<NBITS>)lnd_states[j]<<endl;
+			newstate=lnd_states[j];
+			j_copies[j].push_back(j);
+			j_signs[j].push_back(1);
+			for(int i=0;i<Ne;i++){
+				temp=1;
+				for(int k=0;k<invNu;k++){
+					oldstate=newstate;
+					newstate=0;
+					sites=bitset_to_pos(oldstate,NPhi);
+					for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | 1<<((sites[j]+1)%NPhi);
+					if (newstate<oldstate && Ne%2==0) temp*=-1;
+				}
+//				if(newstate==(signed)lnd_states[j]) break;
+				it=find(lnd_states.begin(),lnd_states.end(),newstate);
+				if(it!=lnd_states.end()){
+					newindex=it-lnd_states.begin();
+					if(invNu%2) temp*=-1.;
+					j_copies[j].push_back(newindex);
+					//cout<<newindex<<" "<<(bitset<NBITS>)newstate<<endl;
+					j_signs[j].push_back(temp);
+				}else{
+					cout<<"state: "<<(bitset<NBITS>)newstate<<" not found"<<endl;
+					exit(0);
+				}
+			}
+		}
+
+#pragma omp parallel for
+		for(int j=0;j<n_lnd;j++){
+	        int coren = omp_get_thread_num();
+			//now fill in the A matrix			
+			vector<int> lnd_zs=bitset_to_pos(lnd_states[j],NPhi);
+			for(int i=0;i<n_mb;i+=Ne){
+				//for the first row of each set of Ne rows, have to calculate the determinants explicitly
+				for(int x=0;x<Ne;x++){
+					for(int y=0;y<Ne;y++){
+						detMatrixPar[coren](x,y)=lnd_table[lnd_zs[y]] [mb_zs[i][x][0]] [mb_zs[i][x][1]];
+					}
+				}										
+				LUsolverPar[coren].compute(detMatrixPar[coren]);
+				Amatrix(i,j)=LUsolverPar[coren].determinant()*pow(0.2,Ne*Ne);
+			}
+		}
+		int count,xsum,jsize;
+		for(int j=0;j<n_lnd;j++){
+			jsize=j_copies[j].size();
+			for(int i=0;i<n_mb;i+=Ne){
+				//for the other rows, just multiply the first row by a phase!
+
+				xsum=0;
+				for(int x=0;x<Ne;x++) xsum+=mb_zs[i][x][0];
+														
+				for(int k=1;k<Ne;k++){
+					count=0;
+					for(int x=0;x<Ne;x++){
+						if(mb_zs[i+k-1][x][1]>=NPhi-invNu) count+=mb_zs[i+k-1][x][0];
+						//if(xsum%2==0 && mb_zs[i+k-1][x][1]>=NPhi-2*invNu) count++;
+					}
+					int sign=1;
+					if(count%2) sign=-1;
+					//cout<<sign<<" "<<xsum*2/(1.*NPhi)<<" "<<j_signs[j][k%jsize]<<endl;
+					Amatrix(i+k,j_copies[j][k%jsize])=(double)(j_signs[j][k%jsize]*sign)*polar(1.,-xsum*2.*M_PI/(1.*NPhi))*Amatrix(i+k-1,j_copies[j][(k-1)%jsize]);
+				}
+			}
+		}
+				
+	}else if (zs_type=="parallel"){
+		int nthreads=omp_get_max_threads();
+	    omp_set_num_threads(nthreads);
+	    vector<Eigen::PartialPivLU<Eigen::MatrixXcd> > LUsolverPar(nthreads);
+	    vector<Eigen::MatrixXcd> detMatrixPar(nthreads,Eigen::MatrixXcd(Ne,Ne));
+#pragma omp parallel for			
+		for(int j=0;j<n_lnd;j++){
+	        int coren = omp_get_thread_num();
+			vector<int> lnd_zsPar=bitset_to_pos(lnd_states[j],NPhi);
+
+			for(int i=0;i<n_mb;i++){
+				for(int x=0;x<Ne;x++){
+					for(int y=0;y<Ne;y++){
+	//					detMatrix(x,y)=landau_basis(mb_zs[i][x],lnd_zs[y]);
+						detMatrixPar[coren](x,y)=lnd_table[lnd_zsPar[y]] [mb_zs[i][x][0]] [mb_zs[i][x][1]];
+					}
+				}
+				LUsolverPar[coren].compute(detMatrixPar[coren]);
+				Amatrix(i,j)=LUsolverPar[coren].determinant()*pow(0.2,Ne*Ne);
+			}
+		}
+	
 	}else{
 	
 		for(int j=0;j<n_lnd;j++){
@@ -622,8 +727,8 @@ void NewChanger::make_Amatrix(){
 				Amatrix(i,j)=LUsolver.determinant()*pow(0.2,Ne*Ne);
 			}
 		}
-		
 	}
+	if(zs_type=="conserve_y" or zs_type=="conserve_y_zs" or zs_type=="conserve_y_parallel") Amatrix=Amatrix*shrinkMatrix.adjoint();		
 }
 
 void NewChanger::make_landau_table(){

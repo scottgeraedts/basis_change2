@@ -10,6 +10,7 @@
 #include <numeric>
 #include "utils.h"
 #include <iomanip>
+#include <omp.h>
 #include "MersenneTwister.h"
 
 #define NBITS 16
