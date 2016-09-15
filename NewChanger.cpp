@@ -437,9 +437,10 @@ void NewChanger::setup_mbl_zs(){
 		//the landau basis have some states which transform into themselves under T_y, so here we make slightly more states than the landau basis
 		makeShrinker(supermod(dsum[0]/invNu+Ne,NPhi));
 
+		int extra_sites=4;
 		int n_sweeps=n_lnd/Ne;
 		if (n_sweeps*Ne < n_lnd) n_sweeps++;		
-		n_mb=n_sweeps*Ne;
+		n_mb=n_sweeps*Ne*extra_sites;
 		
 		mb_zs=vector< vector< vector<int> > >(n_mb, vector< vector<int> > (Ne, vector<int>(2)));
 		
@@ -534,7 +535,7 @@ void NewChanger::make_manybody_vector(){
 void NewChanger::make_Amatrix(){
 	Amatrix=Eigen::MatrixXcd::Zero(n_mb,n_lnd);
 	Eigen::MatrixXcd detMatrix(Ne,Ne);
-	Eigen::PartialPivLU<Eigen::MatrixXcd> LUsolver;
+	Eigen::FullPivLU<Eigen::MatrixXcd> LUsolver;
 	vector<int> lnd_zs;
 	double temp;
 
