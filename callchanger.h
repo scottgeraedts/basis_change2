@@ -5,7 +5,7 @@
 #include <Eigen/Sparse>
 #include "TorusSolver.h"
 #include "shrinker.h"
-
+#include "time.h"
 
 void energy_variance();
 double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control,  const Eigen::VectorXcd &vec0);
