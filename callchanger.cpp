@@ -4,6 +4,46 @@ ArpackError::ErrorCode ArpackError::code = NO_ERRORS;
 #endif
 int main(){
 
+//	int NPhi, Ne;
+//	vector< vector<int> > cfl_ds;
+//	ifstream kfile("batch_ds");
+
+//	vector<NewChanger> wfs;	
+//	string zs_type;
+
+//	kfile>>NPhi>>Ne;
+//	kfile>>zs_type;	
+//	cfl_ds=vector< vector<int> >( Ne, vector<int>(2));
+//	time_t t;
+//	map<string,double> params;
+//	while(true){
+//		t=time(NULL);
+//		for(int x=0;x<Ne;x++){
+//			kfile>>cfl_ds[x][0]>>cfl_ds[x][1];
+//		}
+//		if (kfile.eof()){
+////			cout<<"eof reached"<<endl;
+//			break;
+//		}
+//		for(int x=0;x<Ne;x++){
+//			cout<<"("<<cfl_ds[x][0]<<","<<cfl_ds[x][1]<<") ";
+//		}
+//		cout<<endl;
+//				
+//		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,params,"random");
+//		wfs.push_back(control);
+//	}
+//	
+//	int nzs=10;
+//	Eigen::MatrixXcd z_coeffs(wfs.size(),nzs);
+//	for(int nvec=0;nvec<(signed)wfs.size();nvec++){
+//		for(int i=0;i<nzs;i++){
+//			z_coeffs(nvec,i)=wfs[nvec].get_wf(wfs[0].mb_zs[i])/1e10;
+//		}
+//	}
+//	cout<<z_coeffs<<endl;
+//	Eigen::JacobiSVD<Eigen::MatrixXcd> es(z_coeffs);
+//	cout<<es.singularValues()<<endl;
 //	int NPhi,Ne,manybody_COM;
 //	string type;
 //	ifstream params("params");
@@ -33,6 +73,10 @@ int main(){
 
 	energy_variance();
 }
+
+//given a model wf, computes another model wf at an appropriate momentum so that the action of PH can be tested
+//currently deprecated
+/*
 void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control, const Eigen::VectorXcd &vec0){
 	vector<vector<int> > new_cfl_ds=vector<vector<int> >(Ne,vector<int>(2,0));
 	for(int i=0;i<Ne;i++){
@@ -45,7 +89,7 @@ void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, con
 	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds);	
 	Eigen::VectorXcd vec1=test1.run(false);
 
-	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
+	///MAKE PH SYMMETRY TRANSLATION MATRIX///
 	vector<Eigen::Triplet<complex<double> > > ph_triplets;
 	vector<unsigned int>::iterator it;
 	int partner,sign,xcharge,j;
@@ -91,13 +135,17 @@ void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, con
 	
 		
 }
+*/
+
+//given a model wavefunction, finds the overlap with the action of PH + inversion
 double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control, const Eigen::VectorXcd &vec0){
 	vector<vector<int> > new_cfl_ds=vector<vector<int> >(Ne,vector<int>(2,0));
 	for(int i=0;i<Ne;i++){
 		new_cfl_ds[i][0]=-cfl_ds[i][0];
 		new_cfl_ds[i][1]=-cfl_ds[i][1]+1;
 	}
-	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds);	
+	map<string,double> params;
+	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds,params);	
 //	Eigen::VectorXcd vec1=test1.run(false);
 
 	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
@@ -206,6 +254,7 @@ double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, 
 	return abs(overlap);	
 }
 
+//calls ph overlap many times
 void batch_overlap(){
 
 	int Ne=8;
@@ -215,6 +264,7 @@ void batch_overlap(){
 	vector<int>  Dbar(2);
 	double Dvar,ddbarx,ddbary;
 	Eigen::VectorXcd vec0;
+	map<string,double> params;
 
 	ifstream control_ks("kfile");
 	for(int x=0;x<Ne;x++){
@@ -246,13 +296,17 @@ void batch_overlap(){
 //		Dvar/=sqrt(Ne);
 		Dvar+=sqrt( pow(ddbarx/(2.*Ne),2)+pow(ddbary/(2.*Ne),2));
 		
-		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,ddbarx/(1.*Ne),ddbary/(1.*Ne));
+		
+		params["ddbarx"]=ddbarx/(1.*Ne);
+		params["ddbary"]=ddbary/(1.*Ne);
+		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,params);
 		vec0=control.run(false);
 		cout<<Dvar<<" "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,vec0)<<endl;
 	}
 	kfile.close();
 }
 
+//finds the overlaps between different model wf, good for checking rank
 void orthogonality(){
 	int Ne;
 	int NPhi;
@@ -266,6 +320,8 @@ void orthogonality(){
 	vector<Eigen::VectorXcd> vecs;
 	NewChanger control;
 	cout<<"(dx,dy) values "<<endl;
+	map<string,double> params_map;
+	
 	while(true){
 		for(int x=0;x<Ne;x++){
 			kfile>>cfl_ds[x][0]>>cfl_ds[x][1];
@@ -279,7 +335,7 @@ void orthogonality(){
 		cout<<endl;
 		 	
 		
-		if(first) control=NewChanger(NPhi,Ne,0,"CFL",cfl_ds,0,0,"conserve_y");
+		if(first) control=NewChanger(NPhi,Ne,0,"CFL",cfl_ds,params_map,"conserve_y");
 		else control.reset_ds(cfl_ds);
 		vecs.push_back(control.run(false,first));
 		first=false;
@@ -401,7 +457,7 @@ void orthogonality(){
 }
 
 
-
+//computes the berry phase going on a path few many different wf
 void CFL_berry(){
 	//make a TorusSolver object that has x momentum 1
 	int NPhi,nks,Ne;
@@ -435,10 +491,11 @@ void CFL_berry(){
 	Eigen::MatrixXcd tempmat=Eigen::MatrixXcd::Zero(2,2),product;
 	product=Eigen::MatrixXcd::Identity(2,2);
 	vector<Eigen::SparseMatrix< complex<double> > > rhos11(nks), rhos12(nks), rhos21(nks), rhos22(nks);
+	map<string,double> params;
 
 	int dkx,dky; 
 	for(unsigned int k=0;k<(unsigned)nks;k++){
-		NewChanger H1(NPhi, Ne, 0, "CFL", ds[k]), H2(NPhi, Ne, 0, "CFL", ds2[k]);
+		NewChanger H1(NPhi, Ne, 0, "CFL", ds[k], params), H2(NPhi, Ne, 0, "CFL", ds2[k], params);
 
 		dkx=charges[(k+1)%ds.size()][0]-charges[k][0];
 		dky=charges[(k+1)%ds.size()][1]-charges[k][1];
@@ -499,6 +556,8 @@ void CFL_berry(){
 	}
 	cout<<product<<endl;
 }
+//does a bunch of tests to asses how 'good' a model wf is
+//these include: overlap with ED state, <H^2>-<H>^2, PH symmetry
 void energy_variance(){
 
 	int Ne,NPhi,kx,ky;
@@ -517,6 +576,7 @@ void energy_variance(){
 	double self_energy;
 	bool have_self_energy=false;	
 	string zs_type;
+	map<string,double> params;
 		
 	kfile>>NPhi>>Ne;
 	kfile>>zs_type;	
@@ -548,7 +608,7 @@ void energy_variance(){
 		Dvar/=sqrt(Ne);
 		cout<<"Dvar: "<<Dvar<<endl;
 		
-		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,0,0,zs_type);
+		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,params,zs_type);
 		vec0=control.run(false);
 
 		//relation between these and NewChanger parameters dx,dy: 
@@ -590,8 +650,8 @@ void energy_variance(){
 
 		if(!have_self_energy) self_energy=T.self_energy();
 		cout<<"ED energy: "<<ED_E/(1.*Ne)+self_energy<<endl;
-		cout<<EDout.size()<<" "<<ev1.size()<<" "<<vec0.size()<<" "<<control.lnd_states.size()<<endl;
-		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,ev1)<<endl;
+		//cout<<EDout.size()<<" "<<ev1.size()<<" "<<vec0.size()<<" "<<control.lnd_states.size()<<endl;
+//		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,ev1)<<endl;
 
 		temp_mult=vec0.adjoint()*T.EigenSparse*T.EigenSparse*vec0;
 		E2=real(temp_mult);
@@ -600,7 +660,7 @@ void energy_variance(){
 		temp_mult=vec0.dot(ev1);
 		cout<<"overlap with ED state: "<<abs(temp_mult)<<endl;
 		cout<<"energy, variance: "<<E/(1.*Ne)+self_energy<<" "<<(E2-E*E)/(1.*Ne*Ne)<<endl;
-		cout<<"PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,vec0)<<endl;
+//		cout<<"PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,vec0)<<endl;
 		cout<<endl;	
 		cout<<"time elapsed: "<<difftime(time(NULL),t)<<endl;
 	}

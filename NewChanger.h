@@ -5,6 +5,7 @@
 #include <Eigen/Sparse>
 #include <Eigen/QR>
 #include <vector>
+#include <map>
 #include <complex>
 #include <algorithm>
 #include <numeric>
@@ -27,7 +28,7 @@ extern"C"{
 class NewChanger{
 
 public:
-	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, double ddbarx=0, double ddbary=0, string zs_type="random");
+	NewChanger(int NPhi, int Ne, int COM, string type, vector<vector<int> > ds, map<string,double> params, string zs_type="random");
 	NewChanger();
 	Eigen::SparseMatrix< complex<double> > density_operator(int mx, int my);	
 	void reset_ds(vector <vector <int> > ds, double ddbarx=0, double ddbary=0);
@@ -36,7 +37,9 @@ public:
 	void symmetry_checks();
 	vector<unsigned int> lnd_states,mb_states;
 	int get_dsum(int dir);
+	complex<double> get_wf(const vector< vector<int> > &zs);
 	
+	vector< vector< vector<int> > > mb_zs,lnd_zs;
 	void makeShrinker(int nx);
 	Eigen::SparseMatrix<complex <double> > shrinkMatrix;
 private:
@@ -49,7 +52,6 @@ private:
 	void make_landau_table();
 	void setup_mbl_zs();
 	
-	complex<double> get_wf(const vector< vector<int> > &zs);
 	complex<double> landau_basis( int ix, int iy, int index);
 	double det_helper(int z1, int z2, int d, double dbar);
 	
@@ -61,7 +63,6 @@ private:
 	vector< vector<double> > mb_zeros;
 	vector< vector<int> >cfl_ds;
 	vector<int> dsum;
-	vector< vector< vector<int> > > mb_zs,lnd_zs;
 
 	vector< vector< vector< complex<double> > > > lnd_table;
 	vector< vector< complex<double> > > shifted_ztable;
@@ -71,6 +72,8 @@ private:
 	int manybody_COM;
 	int zero,one;
 	double ddbarx, ddbary;
+	double Lx,Ly,LDelta;
+	double alpha, theta;
 	int n_mb, n_lnd,copies, ystart,ystep;
 	complex<double> L1,L2;
 	string type,zs_type;

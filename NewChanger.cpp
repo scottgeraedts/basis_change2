@@ -1,19 +1,35 @@
 #include "NewChanger.h"
 
+//used for getting elements from map, allows for easy setting of default value
+//should probably be templated and go in utils.h some day
+double map_get(string key, map<string,double> params, double def){
+	map<string,double>::iterator it=params.find(key);
+	if(it==params.end()) return def;
+	else return it->second;
+}
 NewChanger::NewChanger(){
 
 }
-NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, double ddbarx_t, double ddbary_t, string zs_type_t):
+NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, map<string, double> params, string zs_type_t):
 	NPhi(NPhi_t),Ne(Ne_t),manybody_COM(manybody_COM_t),type(type_t){
 
 	invNu=NPhi/Ne;
-	double Lx=sqrt(2*M_PI*NPhi);
-	double Ly=Lx;
-	L1=complex<double>(Lx/sqrt(2.),0);
-	L2=complex<double>(0,Ly/sqrt(2.));
 	
-	ddbarx=ddbarx_t;
-	ddbary=ddbary_t;
+	//some more parameters, which aren't always used
+	ddbarx=map_get("ddbarx",params,0);
+	ddbary=map_get("ddbary",params,0);
+	
+	//alpha is |L1|/|L2|, L1.L2=|L1||L2|cos(theta), theta is in degrees
+	alpha=map_get("alpha",params,1);
+	theta=map_get("theta",params,90);
+
+	Lx=sqrt(2*M_PI*NPhi * alpha/sin(theta));
+	Ly=Lx/alpha*sin(theta);
+	LDelta=Lx/alpha*cos(theta);
+
+	L1=complex<double>(Lx/sqrt(2.),0);
+	L2=complex<double>(LDelta/sqrt(2.),Ly/sqrt(2.));
+
 	
 	zero=0; //for calls to duncan's functions
 	one=1; 
@@ -279,11 +295,11 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 					iy=zs[i][1]-zs[k][1]-invNu*cfl_ds[j][1];
                     x=(ix+dsum[0]/(1.*Ne))/(1.*NPhi);
                     y=(iy+dsum[1]/(1.*Ne))/(1.*NPhi);
-					//z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp);
-					temp=modded_lattice_z(ix,iy);
+					z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp);
+					//temp=modded_lattice_z(ix,iy);
 					product*=temp;
 				}
-				//this p complex<double>  is only valid on a square torus!
+				//suprisingly, I think is is OK even when not on a square torus
 				M(i,j)=product*polar(1., M_PI*(zs[i][1]*cfl_ds[j][0] - zs[i][0]*cfl_ds[j][1])/(1.*NPhi) );
 			}
 		}
@@ -513,6 +529,7 @@ complex<double> NewChanger::landau_basis(int ix, int iy, int index){
 		xzerosum+=lnd_zeros[i];
 	}
 //	if(index%2) out*=-1.;
+	//these phases are needed for translational symmetry, but for many cases they are 1
 	out*=polar(1.,-M_PI*(yzero)*ix);
 	out*=polar(1.,M_PI*(xzerosum/(1.*NPhi))*iy);
 	
