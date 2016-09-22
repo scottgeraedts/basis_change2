@@ -506,7 +506,7 @@ void energy_variance(){
 	ifstream kfile("batch_ds");
 	vector<int>  Dbar(2), states;
 	double Dvar;
-	Eigen::VectorXcd vec0;
+//	Eigen::VectorXcd vec0;
 //	TorusSolver<complex <double> > T(0);
 	Eigen::MatrixXcd Hnn;
 	double E2,E,ED_E;
@@ -521,6 +521,9 @@ void energy_variance(){
 	kfile>>NPhi>>Ne;
 	kfile>>zs_type;	
 	cfl_ds=vector< vector<int> >( Ne, vector<int>(2));
+	vector<Eigen::VectorXcd> vec0;	
+	vector<NewChanger> controls;
+
 	time_t t;
 	while(true){
 		t=time(NULL);
@@ -549,8 +552,14 @@ void energy_variance(){
 		cout<<"Dvar: "<<Dvar<<endl;
 		
 		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,0,0,zs_type);
-		vec0=control.run(false);
-
+		vec0.push_back(control.run(false));
+		controls.push_back(control);
+	}
+	Eigen::VectorXcd tempvec0=vec0[0]+vec0[1];
+	Eigen::VectorXcd tempvec1=vec0[0]-vec0[1];
+	vec0[0]=tempvec0/tempvec0.norm();
+	vec0[1]=tempvec1/tempvec1.norm();
+	for(int nvec;nvec<(signed)vec0.size();nvec++){
 		//relation between these and NewChanger parameters dx,dy: 
 		//kx = dy+8
 		//ky = dx+8
@@ -590,19 +599,19 @@ void energy_variance(){
 
 		if(!have_self_energy) self_energy=T.self_energy();
 		cout<<"ED energy: "<<ED_E/(1.*Ne)+self_energy<<endl;
-		cout<<EDout.size()<<" "<<ev1.size()<<" "<<vec0.size()<<" "<<control.lnd_states.size()<<endl;
-		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,ev1)<<endl;
+		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,controls[nvec],ev1)<<endl;
 
-		temp_mult=vec0.adjoint()*T.EigenSparse*T.EigenSparse*vec0;
+		temp_mult=vec0[nvec].adjoint()*T.EigenSparse*T.EigenSparse*vec0[nvec];
 		E2=real(temp_mult);
-		temp_mult=vec0.adjoint()*T.EigenSparse*vec0;
+		temp_mult=vec0[nvec].adjoint()*T.EigenSparse*vec0[nvec];
 		E=real(temp_mult);
-		temp_mult=vec0.dot(ev1);
+		temp_mult=vec0[nvec].dot(ev1);
 		cout<<"overlap with ED state: "<<abs(temp_mult)<<endl;
 		cout<<"energy, variance: "<<E/(1.*Ne)+self_energy<<" "<<(E2-E*E)/(1.*Ne*Ne)<<endl;
-		cout<<"PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,vec0)<<endl;
+		cout<<"PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,controls[nvec],vec0[nvec])<<endl;
 		cout<<endl;	
 		cout<<"time elapsed: "<<difftime(time(NULL),t)<<endl;
+		cout<<endl;
 	}
 	kfile.close();
 }
