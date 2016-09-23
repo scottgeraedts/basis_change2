@@ -4,6 +4,7 @@
 #include "NewChanger.h"
 #include <Eigen/Sparse>
 #include "TorusSolver.h"
+#include "GeneralTorus.h"
 #include "shrinker.h"
 
 #ifdef USE_CLUSTER

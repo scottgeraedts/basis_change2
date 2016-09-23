@@ -577,6 +577,8 @@ void energy_variance(){
 	bool have_self_energy=false;	
 	string zs_type;
 	map<string,double> params;
+	params["alpha"]=0.5;
+	params["theta"]=60;
 		
 	kfile>>NPhi>>Ne;
 	kfile>>zs_type;	
@@ -618,7 +620,7 @@ void energy_variance(){
 		else kx=supermod(Dbar[1]+Ne,NPhi);
 		ky=supermod(Dbar[0]+Ne,NPhi);
 
-		TorusSolver< complex<double> > T(kx);
+		GeneralTorus T(kx,params["alpha"],params["theta"]);
 		T.store_sparse=true;
 		T.make_Hnn();
 
@@ -648,7 +650,7 @@ void energy_variance(){
 //		cout<<"Ed state"<<endl;
 //		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<endl;
 
-		if(!have_self_energy) self_energy=T.self_energy();
+		//if(!have_self_energy) self_energy=T.self_energy();
 		cout<<"ED energy: "<<ED_E/(1.*Ne)+self_energy<<endl;
 		//cout<<EDout.size()<<" "<<ev1.size()<<" "<<vec0.size()<<" "<<control.lnd_states.size()<<endl;
 //		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,control,ev1)<<endl;

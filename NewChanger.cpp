@@ -21,7 +21,8 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	
 	//alpha is |L1|/|L2|, L1.L2=|L1||L2|cos(theta), theta is in degrees
 	alpha=map_get("alpha",params,1);
-	theta=map_get("theta",params,90);
+	theta=map_get("theta",params,90)*2*M_PI/(360.);
+
 
 	Lx=sqrt(2*M_PI*NPhi * alpha/sin(theta));
 	Ly=Lx/alpha*sin(theta);
@@ -296,7 +297,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
                     x=(ix+dsum[0]/(1.*Ne))/(1.*NPhi);
                     y=(iy+dsum[1]/(1.*Ne))/(1.*NPhi);
 					z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp);
-					//temp=modded_lattice_z(ix,iy);
+				//	temp=modded_lattice_z(ix,iy);
 					product*=temp;
 				}
 				//suprisingly, I think is is OK even when not on a square torus
