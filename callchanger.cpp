@@ -555,10 +555,10 @@ void energy_variance(){
 		vec0.push_back(control.run(false));
 		controls.push_back(control);
 	}
-	Eigen::VectorXcd tempvec0=vec0[0]+vec0[1];
-	Eigen::VectorXcd tempvec1=vec0[0]-vec0[1];
-	vec0[0]=tempvec0/tempvec0.norm();
-	vec0[1]=tempvec1/tempvec1.norm();
+//	Eigen::VectorXcd tempvec0=vec0[0]+vec0[1];
+//	Eigen::VectorXcd tempvec1=vec0[0]-vec0[1];
+//	vec0[0]=tempvec0/tempvec0.norm();
+//	vec0[1]=tempvec1/tempvec1.norm();
 	for(int nvec;nvec<(signed)vec0.size();nvec++){
 		//relation between these and NewChanger parameters dx,dy: 
 		//kx = dy+8
