@@ -640,12 +640,12 @@ void energy_variance(){
 		else kx=supermod(Dbar[1]+Ne,NPhi);
 		ky=supermod(Dbar[0]+Ne,NPhi);
 
-		GeneralTorus T(kx,params["alpha"],params["theta"]);
-		T.store_sparse=true;
+		TorusSolver<complex<double> > T(kx);
+		T.store_sparse=false;
 		T.make_Hnn();
 
 		T.makeShrinker(ky);
-		//cout<<H1.shrinkMatrix.rows()<<" "<<H1.shrinkMatrix.cols()<<" "<<H1.EigenDense.rows()<<endl;
+		cout<<T.shrinkMatrix.rows()<<" "<<T.shrinkMatrix.cols()<<" "<<T.EigenDense.rows()<<endl;
 //		Hnn=Eigen::MatrixXcd(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
 		Eigen::SparseMatrix<complex <double> > tempMat=(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
 
@@ -660,28 +660,28 @@ void energy_variance(){
 			cout<<"you need to use the cluster to use arpack"<<endl;
 #endif
 		}else{
-			Hnn=Eigen::MatrixXcd(T.EigenSparse);
-//			Hnn=Eigen::MatrixXcd(tempMat);
+//			Hnn=Eigen::MatrixXcd(T.EigenDense);
+			Hnn=Eigen::MatrixXcd(tempMat);
 			es.compute(Hnn);
 			EDout=es.eigenvectors().col(0);
 			ED_E=es.eigenvalues()(0);
 		}	
-		//ev1=T.shrinkMatrix.adjoint()*EDout;
-		ev1=EDout;
+		ev1=T.shrinkMatrix.adjoint()*EDout;
+//		ev1=EDout;
 		states=T.get_states();
 
-//		cout<<"Ed state"<<endl;
-//		Eigen::VectorXd absED(states.size()), absWF(states.size());
-//		for(int i=0;i<(signed)states.size();i++){
-//			cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<" ";
-//			cout<<abs(vec0[nvec](i))<<" "<<arg(vec0[nvec](i))<<endl;
-//			absWF(i)=abs(vec0[nvec](i));
-//			absED(i)=abs(ev1(i));
-//			
-//		}
-//		cout<<endl;
+		cout<<"Ed state"<<endl;
+		Eigen::VectorXd absED(states.size()), absWF(states.size());
+		for(int i=0;i<(signed)states.size();i++){
+			cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<" ";
+			cout<<abs(vec0[nvec](i))<<" "<<arg(vec0[nvec](i))<<endl;
+			absWF(i)=abs(vec0[nvec](i));
+			absED(i)=abs(ev1(i));
+			
+		}
+		cout<<endl;
 //		
-//		cout<<"absolute overlaps"<<absED.dot(absWF)<<endl;
+		cout<<"absolute overlaps"<<absED.dot(absWF)<<endl;
 		
 		if(!have_self_energy) self_energy=T.self_energy();
 		cout<<"ED energy: "<<ED_E/(1.*Ne)+self_energy<<endl;
