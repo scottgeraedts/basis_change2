@@ -145,6 +145,7 @@ double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, 
 		new_cfl_ds[i][1]=-cfl_ds[i][1]+1;
 	}
 	map<string,double> params;
+	params["theta"]=60;
 	NewChanger test1(NPhi,Ne,0,type,new_cfl_ds,params);	
 //	Eigen::VectorXcd vec1=test1.run(false);
 
@@ -317,10 +318,11 @@ void orthogonality(){
 	bool first=true;
 	vector< vector<int> > cfl_ds( Ne, vector<int>(2));
 	ifstream kfile("batch_ks");
-	vector<Eigen::VectorXcd> vecs;
+	vector<Eigen::VectorXcd> vecs, rvecs;
 	NewChanger control;
 	cout<<"(dx,dy) values "<<endl;
 	map<string,double> params_map;
+	params_map["theta"]=90;
 	
 	while(true){
 		for(int x=0;x<Ne;x++){
@@ -335,9 +337,10 @@ void orthogonality(){
 		cout<<endl;
 		 	
 		
-		if(first) control=NewChanger(NPhi,Ne,0,"CFL",cfl_ds,params_map,"conserve_y");
+		if(first) control=NewChanger(NPhi,Ne,0,"CFL",cfl_ds,params_map,"lines");
 		else control.reset_ds(cfl_ds);
 		vecs.push_back(control.run(false,first));
+		rvecs.push_back(control.manybody_vector);
 		first=false;
 	}
 	cout<<endl;
@@ -417,7 +420,14 @@ void orthogonality(){
 //		Hnn=Eigen::MatrixXcd(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
 	Eigen::MatrixXcd Hnn;
 	Eigen::SparseMatrix<complex <double> > tempMat=(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
-	double ED_E;
+
+	ofstream vout("vecs");
+	for(int i=0;i<(signed)control.lnd_states.size();i++){
+		for(int j=0;j<nvecs;j++) vout<<rvecs[j](i)<<" ";
+		//vout<<(bitset<NBITS>)control.lnd_states[i]<<endl;
+		vout<<endl;
+	}
+	vout.close();
 
 	int n_exacts=10;
 	if(Ne<=5) n_exacts=5;
@@ -428,32 +438,32 @@ void orthogonality(){
 		mat2.set(tempMat);
 		mat2.eigenvalues(n_exacts);
 		for(int i=0;i<n_exacts;i++) EDout[i]=Std_To_Eigen(mat2.eigvecs[i]);
-		ED_E=mat2.eigvals[0];
+		//ED_E=mat2.eigvals[0];
 #else
 		cout<<"you need to use the cluster to use arpack"<<endl;
 #endif
 	}else{
 		Hnn=Eigen::MatrixXcd(tempMat);
 		es.compute(Hnn);
-		for(int i=0;i<n_exacts;i++) EDout[i]=es.eigenvectors().col(i);
-		ED_E=es.eigenvalues()(0);
-	}	
-	for(int i=0;i<n_exacts;i++) EDout[i]=T.shrinkMatrix.adjoint()*EDout[i];
+		//for(int i=0;i<n_exacts;i++) EDout[i]=es.eigenvectors().col(i);
+		//ED_E=es.eigenvalues()(0);
+	}
+//	for(int i=0;i<n_exacts;i++) EDout[i]=T.shrinkMatrix.adjoint()*EDout[i];
 
-	Eigen::MatrixXcd coeffs(n_exacts,nvecs);
-	cout<<"model states in terms of exact states"<<endl;
-	vector<double> norms(nvecs,0);
-	for(int i=0;i<n_exacts;i++){
-		for(int j=0;j<nvecs;j++){
-			coeffs(i,j)=EDout[i].dot(vecs[j]);
-			cout<<coeffs(i,j)<<" ";
-			norms[j]+=abs(coeffs(i,j));
-		}
-		cout<<endl;
-	}
-	for(int j=0;j<nvecs;j++){
-		if(1-norms[j]>0.02) cout<<"vector "<<j<<" not well described by the computed exact states"<<endl;
-	}
+//	Eigen::MatrixXcd coeffs(n_exacts,nvecs);
+//	cout<<"model states in terms of exact states"<<endl;
+//	vector<double> norms(nvecs,0);
+//	for(int i=0;i<n_exacts;i++){
+//		for(int j=0;j<nvecs;j++){
+//			coeffs(i,j)=EDout[i].dot(vecs[j]);
+//			cout<<coeffs(i,j)<<" ";
+//			norms[j]+=abs(coeffs(i,j));
+//		}
+//		cout<<endl;
+//	}
+//	for(int j=0;j<nvecs;j++){
+//		if(1-norms[j]>0.02) cout<<"vector "<<j<<" not well described by the computed exact states"<<endl;
+//	}
 }
 
 
@@ -577,8 +587,8 @@ void energy_variance(){
 	bool have_self_energy=false;	
 	string zs_type;
 	map<string,double> params;
-	params["alpha"]=0.5;
-	params["theta"]=60;
+	params["alpha"]=1;
+	params["theta"]=90;
 		
 	kfile>>NPhi>>Ne;
 	kfile>>zs_type;	
@@ -586,6 +596,7 @@ void energy_variance(){
 	vector<Eigen::VectorXcd> vec0;	
 	vector<NewChanger> controls;
 
+	int nvec=0;
 	time_t t;
 	while(true){
 		t=time(NULL);
@@ -613,15 +624,15 @@ void energy_variance(){
 		Dvar/=sqrt(Ne);
 		cout<<"Dvar: "<<Dvar<<endl;
 		
-		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,0,0,zs_type);
-		vec0.push_back(control.run(false));
+		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,params,zs_type);
+		vec0.push_back(control.run(true));
 		controls.push_back(control);
-	}
+//	}
 //	Eigen::VectorXcd tempvec0=vec0[0]+vec0[1];
 //	Eigen::VectorXcd tempvec1=vec0[0]-vec0[1];
 //	vec0[0]=tempvec0/tempvec0.norm();
 //	vec0[1]=tempvec1/tempvec1.norm();
-	for(int nvec;nvec<(signed)vec0.size();nvec++){
+//	for(int nvec;nvec<(signed)vec0.size();nvec++){
 		//relation between these and NewChanger parameters dx,dy: 
 		//kx = dy+8
 		//ky = dx+8
@@ -649,20 +660,33 @@ void energy_variance(){
 			cout<<"you need to use the cluster to use arpack"<<endl;
 #endif
 		}else{
-			Hnn=Eigen::MatrixXcd(tempMat);
+			Hnn=Eigen::MatrixXcd(T.EigenSparse);
+//			Hnn=Eigen::MatrixXcd(tempMat);
 			es.compute(Hnn);
 			EDout=es.eigenvectors().col(0);
 			ED_E=es.eigenvalues()(0);
 		}	
-		ev1=T.shrinkMatrix.adjoint()*EDout;
+		//ev1=T.shrinkMatrix.adjoint()*EDout;
+		ev1=EDout;
 		states=T.get_states();
-//		cout<<"Ed state"<<endl;
-//		for(int i=0;i<(signed)states.size();i++) cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<endl;
 
-		//if(!have_self_energy) self_energy=T.self_energy();
+//		cout<<"Ed state"<<endl;
+//		Eigen::VectorXd absED(states.size()), absWF(states.size());
+//		for(int i=0;i<(signed)states.size();i++){
+//			cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<" ";
+//			cout<<abs(vec0[nvec](i))<<" "<<arg(vec0[nvec](i))<<endl;
+//			absWF(i)=abs(vec0[nvec](i));
+//			absED(i)=abs(ev1(i));
+//			
+//		}
+//		cout<<endl;
+//		
+//		cout<<"absolute overlaps"<<absED.dot(absWF)<<endl;
+		
+		if(!have_self_energy) self_energy=T.self_energy();
 		cout<<"ED energy: "<<ED_E/(1.*Ne)+self_energy<<endl;
 		//cout<<EDout.size()<<" "<<ev1.size()<<" "<<vec0.size()<<" "<<control.lnd_states.size()<<endl;
-//		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,controls[nvec],ev1)<<endl;
+		cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,controls[nvec],ev1)<<endl;
 
 		temp_mult=vec0[nvec].adjoint()*T.EigenSparse*T.EigenSparse*vec0[nvec];
 		E2=real(temp_mult);
@@ -671,10 +695,11 @@ void energy_variance(){
 		temp_mult=vec0[nvec].dot(ev1);
 		cout<<"overlap with ED state: "<<abs(temp_mult)<<endl;
 		cout<<"energy, variance: "<<E/(1.*Ne)+self_energy<<" "<<(E2-E*E)/(1.*Ne*Ne)<<endl;
-//		cout<<"PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,controls[nvec],vec0[nvec])<<endl;
+		cout<<"PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,controls[nvec],vec0[nvec])<<endl;
 		cout<<endl;	
 		cout<<"time elapsed: "<<difftime(time(NULL),t)<<endl;
 		cout<<endl;
+		nvec++;
 	}
 	kfile.close();
 }

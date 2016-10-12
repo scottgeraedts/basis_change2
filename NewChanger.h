@@ -42,6 +42,8 @@ public:
 	vector< vector< vector<int> > > mb_zs,lnd_zs;
 	void makeShrinker(int nx);
 	Eigen::SparseMatrix<complex <double> > shrinkMatrix;
+	Eigen::VectorXcd manybody_vector;
+
 private:
 	void make_manybody_vector();
 	void make_manybody_symmetry_x();
@@ -55,7 +57,6 @@ private:
 	complex<double> landau_basis( int ix, int iy, int index);
 	double det_helper(int z1, int z2, int d, double dbar);
 	
-	Eigen::VectorXcd manybody_vector;
 	Eigen::MatrixXcd Amatrix, Tx_mb, Tx_lnd;
 	Eigen::MatrixXcd Ty_mb, Ty_lnd;
 	

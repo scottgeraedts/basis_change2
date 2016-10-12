@@ -30,7 +30,7 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 
 	L1=complex<double>(Lx/sqrt(2.),0);
 	L2=complex<double>(LDelta/sqrt(2.),Ly/sqrt(2.));
-
+//	cout<<"Ls: "<<Lx<<" "<<Ly<<" "<<LDelta<<endl;
 	
 	zero=0; //for calls to duncan's functions
 	one=1; 
@@ -72,7 +72,7 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	int xcharge;
 	lnd_charge=Ne*manybody_COM;
 	if(Ne%2==0) lnd_charge+=NPhi/2; //for some reason you dont get the charge sector you expect for even Ne
-	if(type=="CFL") lnd_charge+=dsum[1]/invNu;
+	if(type=="CFL" or type=="oldCFL") lnd_charge+=dsum[1]/invNu;
 	lnd_charge=supermod(lnd_charge,NPhi);
 //	cout<<"charge: "<<lnd_charge<<endl;
 	for(int i=0;i<pow(2,NPhi);i++){
@@ -263,7 +263,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 	}
 
 	for( int i=0;i<invNu;i++){
-		if(type=="CFL"){
+		if(type=="CFL" or type=="oldCFL"){
 			x=(COM[0]-dsum[0]/invNu)/(1.*NPhi)-mb_zeros[i][0];
 			y=(COM[1]-dsum[1]/invNu)/(1.*NPhi)-mb_zeros[i][1];
 		}
@@ -310,6 +310,20 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 //		cout<<temp<<endl;
 	  	out*=temp;
 	}
+	if(type=="oldCFL"){
+		Eigen::MatrixXcd M(Ne,Ne);
+		for(int i=0;i<Ne;i++){
+			for(int j=0;j<Ne;j++){
+				//suprisingly, I think is is OK even when not on a square torus
+				M(i,j)=polar(1., M_PI*invNu*(zs[i][1]*cfl_ds[j][0] - zs[i][0]*cfl_ds[j][1])/(1.*NPhi) );
+			}
+		}
+//		cout<<M<<endl;
+		detSolver.compute(M);
+		temp=detSolver.determinant(); 
+//		cout<<temp<<endl;
+	  	out*=temp;
+	}
         
 	return out;
 } 
@@ -327,7 +341,7 @@ void NewChanger::reset_ds(vector< vector<int> > ds, double ddbarx_t, double ddba
 		dsum[1]+=cfl_ds[i][1]*invNu;
 	}
 	if(old_dsum%NPhi!=dsum[1]%NPhi){
-		cout<<"you reset the ds into a different charge sector!"<<endl;
+		cout<<"you reset the ds into a different charge sector! "<<old_dsum<<" "<<dsum[1]<<endl;
 		exit(0);
 	}
 //	cout<<"dsum: "<<dsum[0]<<" "<<dsum[1]<<endl;
@@ -393,7 +407,7 @@ void NewChanger::setup_mbl_zs(){
 		}
 	//	for(int i=0;i<mb_states.size();i++) cout<<(bitset<6>)mb_states[i]<<endl;
 		ystart=0; ystep=1;
-		copies=NPhi; //amount of redundancy 
+		copies=1; //amount of redundancy 
 	//	for(int i=0;i<mb_states.size();i++) cout<<(bitset<NBITS>)mb_states[i]<<endl;
 		n_mb=mb_states.size()*copies;
 
