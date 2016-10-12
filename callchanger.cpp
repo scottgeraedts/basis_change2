@@ -624,7 +624,7 @@ void energy_variance(){
 		Dvar/=sqrt(Ne);
 		cout<<"Dvar: "<<Dvar<<endl;
 		
-		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,params,zs_type);
+		NewChanger control(NPhi,Ne,0,"oldCFL",cfl_ds,params,zs_type);
 		vec0.push_back(control.run(true));
 		controls.push_back(control);
 //	}
@@ -641,11 +641,11 @@ void energy_variance(){
 		ky=supermod(Dbar[0]+Ne,NPhi);
 
 		TorusSolver<complex<double> > T(kx);
-		T.store_sparse=false;
+		T.store_sparse=true;
 		T.make_Hnn();
 
 		T.makeShrinker(ky);
-		cout<<T.shrinkMatrix.rows()<<" "<<T.shrinkMatrix.cols()<<" "<<T.EigenDense.rows()<<endl;
+		cout<<T.shrinkMatrix.rows()<<" "<<T.shrinkMatrix.cols()<<" "<<T.EigenSparse.rows()<<endl;
 //		Hnn=Eigen::MatrixXcd(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
 		Eigen::SparseMatrix<complex <double> > tempMat=(T.shrinkMatrix * T.EigenSparse * T.shrinkMatrix.adjoint());
 
