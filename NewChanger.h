@@ -14,7 +14,9 @@
 #include <omp.h>
 #include "MersenneTwister.h"
 
-#define NBITS 16
+#define NBITS 18
+
+typedef unsigned int state_int;
 
 using namespace std;
 

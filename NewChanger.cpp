@@ -101,6 +101,10 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 
 }
 void NewChanger::symmetry_checks(){
+
+	if(zs_type!="lines"){
+		cout<<"wrong z type for symmetry checking"<<endl;
+	}
 	make_manybody_symmetry_x();
 	make_manybody_symmetry_y();
 	make_landau_symmetry_x();
@@ -109,9 +113,10 @@ void NewChanger::symmetry_checks(){
 
 	complex<double> dfactor;
 	if(type=="laughlin") dfactor=1.;
-	else if(type=="CFL") dfactor=polar(1.,2*M_PI*dsum[1]/(1.*NPhi*invNu));
+	else if(type=="CFL" or type=="oldCFL") dfactor=polar(1.,2*M_PI*dsum[1]/(1.*NPhi*invNu));
 ///***CHECKING X SYMMETRIES***////
 	cout<<"*****CHECKING X SYMMETRIES****"<<endl;
+	cout<<"checking wavefunction"<<endl;
 	Eigen::VectorXcd tempX=Tx_mb*manybody_vector;
 	for(int i=0;i<n_mb;i++){ 
 		if(i%mb_states.size()==0) cout<<"----------y="<<i/mb_states.size()<<"---------------"<<endl;
@@ -123,6 +128,7 @@ void NewChanger::symmetry_checks(){
 	}
 	cout<<endl; 
 
+	cout<<"checking matrix"<<endl;
 	cout<<Tx_mb.rows()<<" "<<Tx_mb.cols()<<" "<<Amatrix.rows()<<" "<<Amatrix.cols()<<" "<<Tx_lnd.rows()<<" "<<Tx_lnd.cols()<<endl;
 	Eigen::MatrixXcd tempM=Tx_mb*Amatrix*(Tx_lnd.adjoint());
 	for(int i=0;i<n_mb;i++){
@@ -140,7 +146,7 @@ void NewChanger::symmetry_checks(){
 	cout<<"*****CHECKING Y SYMMETRIES****"<<endl;
 
 	if(type=="laughlin") dfactor=1.;
-	else if(type=="CFL") dfactor=polar(1.,-2*M_PI*dsum[0]/(1.*Ne*invNu));
+	else if(type=="CFL" or type=="oldCFL") dfactor=polar(1.,-2*M_PI*dsum[0]/(1.*Ne*invNu));
 
 	Eigen::VectorXcd tempY=Ty_mb*manybody_vector;
 	for(int i=0;i<n_mb;i++){ 
@@ -255,7 +261,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 		}
 	}
 	
-	//com p complex<double> 
+	//com part 
 	int COM[2]={0,0};
 	for( int i=0;i<Ne;i++){
 		COM[0]+=zs[i][0];
@@ -263,7 +269,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 	}
 
 	for( int i=0;i<invNu;i++){
-		if(type=="CFL" or type=="oldCFL"){
+		if(type=="CFL"){
 			x=(COM[0]-dsum[0]/invNu)/(1.*NPhi)-mb_zeros[i][0];
 			y=(COM[1]-dsum[1]/invNu)/(1.*NPhi)-mb_zeros[i][1];
 		}
@@ -282,7 +288,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 	for(int i=0;i<invNu;i++) mb_zeros_sumx+=mb_zeros[i][0];
 //	out*=polar(1.,-M_PI*COM[1]*mb_zeros_sumx/(1.*NPhi));
 	
-	//determinant p complex<double> 
+	//determinant part
 	Eigen::FullPivLU<Eigen::MatrixXcd> detSolver;
 	if(type=="CFL"){
 		complex<double> product;
@@ -314,14 +320,13 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 		Eigen::MatrixXcd M(Ne,Ne);
 		for(int i=0;i<Ne;i++){
 			for(int j=0;j<Ne;j++){
-				//suprisingly, I think is is OK even when not on a square torus
-				M(i,j)=polar(1., M_PI*invNu*(zs[i][1]*cfl_ds[j][0] - zs[i][0]*cfl_ds[j][1])/(1.*NPhi) );
+				M(i,j)=polar(1., M_PI*invNu*(zs[i][1]*cfl_ds[j][0] + zs[i][0]*cfl_ds[j][1])/(1.*NPhi) );
 			}
 		}
-//		cout<<M<<endl;
+		//cout<<M<<endl;
 		detSolver.compute(M);
 		temp=detSolver.determinant(); 
-//		cout<<temp<<endl;
+		//cout<<temp<<endl;
 	  	out*=temp;
 	}
         
@@ -380,13 +385,13 @@ complex<double> NewChanger::modded_lattice_z(int x, int y){// why need this func
 
 void NewChanger::setup_mbl_zs(){
 
-	bool symmetry_contract=true;
 	bool found,found2;
 	int seed=0;
 	MTRand ran;
 	ran.seed(seed);
 
 	if(zs_type=="lines"){	
+		bool symmetry_contract=false;
 		//make the set of all possible positions, for mb side
 		int tempbit;
 		vector<unsigned int>::iterator it;
@@ -467,7 +472,7 @@ void NewChanger::setup_mbl_zs(){
 		//the landau basis have some states which transform into themselves under T_y, so here we make slightly more states than the landau basis
 		makeShrinker(supermod(dsum[0]/invNu+Ne,NPhi));
 
-		int extra_sites=4;
+		int extra_sites=8;
 		int n_sweeps=n_lnd/Ne;
 		if (n_sweeps*Ne < n_lnd) n_sweeps++;		
 		n_mb=n_sweeps*Ne*extra_sites;
@@ -555,12 +560,19 @@ void NewChanger::make_manybody_vector(){
 	manybody_vector=Eigen::VectorXcd::Zero(n_mb);
 	for(int i=0;i<n_mb;i++){
 		manybody_vector(i)=get_wf(mb_zs[i]);
-//		cout<<setprecision(10)<<mb_zs[i][0][0]<<" "<<mb_zs[i][0][1]<<" "<<mb_zs[i][1][0]<<" "<<mb_zs[i][1][1]<<" "<<manybody_vector(i)<<endl;
+		//for(int j=0;j<Ne;j++) cout<<mb_zs[i][j][0]<<" "<<mb_zs[i][j][1]<<" ";
+		//cout<<setprecision(10)<<manybody_vector(i)<<endl;
 	}
 	
 	//normalize
 	double norm=manybody_vector.norm();
 	manybody_vector=manybody_vector/norm;
+	
+	for(int i=0;i<n_mb;i++){
+		//cout<<manybody_vector(i)<<" ";
+		//if(zs_type=="lines") cout<<(bitset<10>)(mb_states[i%(n_mb/NPhi)]);
+		//cout<<endl;
+	}
 }
 
 void NewChanger::make_Amatrix(){
@@ -844,7 +856,7 @@ void NewChanger::make_manybody_symmetry_x(){
 				sign=1;
 				if(mb_states[newindex] <= mb_states[i]){
 					if (type=="laughlin" ) sign*=-1.;
-					if (type== "CFL" && Ne%2==0) sign*=-1;
+					if ( (type== "CFL" or type=="oldCFL") && Ne%2==0) sign*=-1;
 					if (y*ystep % 2) sign*=-1; //this one is from the gauge term below
 					//if (type=="laughlin" && y%2) sign*=-1;
 				}
