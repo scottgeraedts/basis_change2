@@ -14,9 +14,9 @@
 #include <omp.h>
 #include "MersenneTwister.h"
 
-#define NBITS 18
+#define NBITS 32
 
-typedef unsigned int state_int;
+typedef unsigned long int state_int;
 
 using namespace std;
 
@@ -37,7 +37,7 @@ public:
 	Eigen::VectorXcd run(bool print, bool compute_A=true);
 	void test();
 	void symmetry_checks();
-	vector<unsigned int> lnd_states,mb_states;
+	vector<state_int> lnd_states,mb_states;
 	int get_dsum(int dir);
 	complex<double> get_wf(const vector< vector<int> > &zs);
 	

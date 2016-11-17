@@ -1,5 +1,6 @@
 #include "NewChanger.h"
 
+
 //used for getting elements from map, allows for easy setting of default value
 //should probably be templated and go in utils.h some day
 double map_get(string key, map<string,double> params, double def){
@@ -12,6 +13,7 @@ NewChanger::NewChanger(){
 }
 NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, vector< vector<int> >ds, map<string, double> params, string zs_type_t):
 	NPhi(NPhi_t),Ne(Ne_t),manybody_COM(manybody_COM_t),type(type_t){
+	state_int one=1;
 
 	invNu=NPhi/Ne;
 	
@@ -75,16 +77,19 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	if(type=="CFL" or type=="oldCFL") lnd_charge+=dsum[1]/invNu;
 	lnd_charge=supermod(lnd_charge,NPhi);
 //	cout<<"charge: "<<lnd_charge<<endl;
-	for(int i=0;i<pow(2,NPhi);i++){
+	cout<<"staring to make states"<<endl;
+	for(state_int i=0;i<one<<NPhi;i++){
+		//cout<<i<<" "<<(one<<NPhi)<<endl;
 		if(count_bits(i)==Ne){
 			xcharge=0;
 			for(int x=0;x<NPhi;x++)
-				if(i & 1<<x) xcharge+=x;
+				if(i & one<<x) xcharge+=x;
 				
 			if(xcharge%NPhi==lnd_charge) lnd_states.push_back(i);
 //			lnd_states.push_back(i);
 		}
 	}
+	cout<<"done making states"<<endl;
 	n_lnd=lnd_states.size();
 //	cout<<"lnd states"<<endl;
 //	for(int i=0;i<lnd_states.size();i++) cout<<(bitset<NBITS>)lnd_states[i]<<endl;
@@ -394,7 +399,7 @@ void NewChanger::setup_mbl_zs(){
 		bool symmetry_contract=false;
 		//make the set of all possible positions, for mb side
 		int tempbit;
-		vector<unsigned int>::iterator it;
+		vector<state_int>::iterator it;
 		for(int i=0;i<pow(2,NPhi);i++){
 			if(count_bits(i)==Ne){
 				tempbit=i;
@@ -581,10 +586,11 @@ void NewChanger::make_Amatrix(){
 	Eigen::FullPivLU<Eigen::MatrixXcd> LUsolver;
 	vector<int> lnd_zs;
 	double temp;
+	state_int one=1;
 
 	if(zs_type=="conserve_y"){
 		int xsum,count,sign,newstate,oldstate,newindex,jsize;
-		vector<unsigned int>::iterator it;
+		vector<state_int>::iterator it;
 		vector< vector<int> > j_copies(n_lnd), j_signs(n_lnd);
 		vector<int> sites;
 
@@ -602,7 +608,7 @@ void NewChanger::make_Amatrix(){
 					oldstate=newstate;
 					newstate=0;
 					sites=bitset_to_pos(oldstate,NPhi);
-					for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | 1<<((sites[j]+1)%NPhi);
+					for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | one<<((sites[j]+1)%NPhi);
 					if (newstate<oldstate && Ne%2==0) temp*=-1;
 				}
 //				if(newstate==(signed)lnd_states[j]) break;
@@ -651,7 +657,7 @@ void NewChanger::make_Amatrix(){
 		}
 	}else if(zs_type=="conserve_y_parallel"){
 		int newstate,oldstate,newindex,nthreads;
-		vector<unsigned int>::iterator it;
+		vector<state_int>::iterator it;
 		vector< vector<int> > j_copies(n_lnd), j_signs(n_lnd);
 		vector<int> sites;
 
@@ -677,7 +683,7 @@ void NewChanger::make_Amatrix(){
 					oldstate=newstate;
 					newstate=0;
 					sites=bitset_to_pos(oldstate,NPhi);
-					for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | 1<<((sites[j]+1)%NPhi);
+					for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | one<<((sites[j]+1)%NPhi);
 					if (newstate<oldstate && Ne%2==0) temp*=-1;
 				}
 //				if(newstate==(signed)lnd_states[j]) break;
@@ -787,6 +793,8 @@ void NewChanger::make_landau_table(){
 }
 				
 void NewChanger::make_landau_symmetry_x(){
+	state_int one=1;
+
 	Tx_lnd=Eigen::MatrixXcd::Zero(n_lnd,n_lnd);
 	int xcount;
 	double sign=1;
@@ -794,7 +802,7 @@ void NewChanger::make_landau_symmetry_x(){
 	for(int i=0;i<n_lnd;i++){
 		xcount=0;
 		for(int x=0;x<NPhi;x++){
-			if(lnd_states[i] & 1<<x) xcount+=x;
+			if(lnd_states[i] & one<<x) xcount+=x;
 		}
 		Tx_lnd(i,i)=sign*polar(1.,-2*M_PI*xcount/(1.*NPhi));
 	}
@@ -804,7 +812,7 @@ void NewChanger::make_landau_symmetry_y(){
 	Ty_lnd=Eigen::MatrixXcd::Zero(n_lnd,n_lnd);
 	vector<int> sites;
 	int newstate=0,newindex,oldstate;
-	vector<unsigned int>::const_iterator it;
+	vector<state_int>::const_iterator it;
 	double temp;
 
 	for(int i=0;i<n_lnd;i++){
@@ -816,7 +824,7 @@ void NewChanger::make_landau_symmetry_y(){
 			oldstate=newstate;
 			newstate=0;
 			sites=bitset_to_pos(oldstate,NPhi);
-			for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | 1<<((sites[j]+1)%NPhi);
+			for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | one<<((sites[j]+1)%NPhi);
 			if (newstate<oldstate && Ne%2==0) temp*=-1;
 		}
 		it=find(lnd_states.begin(),lnd_states.end(),newstate);
@@ -835,10 +843,11 @@ void NewChanger::make_landau_symmetry_y(){
 
 void NewChanger::make_manybody_symmetry_x(){
 	Tx_mb=Eigen::MatrixXcd::Zero(n_mb,n_mb);
+	state_int one=1;
 
 	vector<int> sites;
 	int newstate=0,newindex;
-	vector<unsigned int>::const_iterator it;
+	vector<state_int>::const_iterator it;
 	complex<double> temp;
 	double sign;
 
@@ -847,7 +856,7 @@ void NewChanger::make_manybody_symmetry_x(){
 		//translation matrix
 		newstate=0;
 		sites=bitset_to_pos(mb_states[i],NPhi);
-		for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | 1<<((sites[j]+1)%NPhi);
+		for(int j=0;j<(signed)sites.size(); j++) newstate=newstate | one<<((sites[j]+1)%NPhi);
 		it=find(mb_states.begin(),mb_states.end(),newstate);
 		if(it!=mb_states.end()){
 			newindex=it-mb_states.begin();
@@ -902,17 +911,19 @@ void NewChanger::test(){
 
 //construct denstiy operator rho(kx,ky)
 Eigen::SparseMatrix< complex<double> > NewChanger::density_operator(int my, int mx){
+	state_int one=1;
+
 	//this operator doesn't conserve charge, and so it maps between different bases
 	//this p complex<double>  constructs the basis to map to, it works just like make_states
 	//the new basis has its charge INCREASED by kx
 	int verbose=0,xcharge;
-	vector<unsigned int> new_states;
+	vector<state_int> new_states;
 	if(mx==0) new_states=lnd_states;
 	else{
 		for(int i=0;i<intpow(2,NPhi);i++){
 			xcharge=0;
 			for(int x=0;x<NPhi;x++)
-				if(i & 1<<x) xcharge+=x;
+				if(i & one<<x) xcharge+=x;
 			if(count_bits(i)==Ne && xcharge%NPhi==supermod(lnd_charge+mx,NPhi) )
 				new_states.push_back(i);
 		}
@@ -935,8 +946,8 @@ Eigen::SparseMatrix< complex<double> > NewChanger::density_operator(int my, int 
 	else kx=2*M_PI/Lx*mx;
 	if(my>NPhi/2) ky=2*M_PI/Ly*(my-NPhi);
 	else ky=2*M_PI/Ly*my;
-	vector<unsigned int>::iterator it;
-	unsigned int newstate;
+	vector<state_int>::iterator it;
+	state_int newstate;
 	prefactor=polar(exp(-0.25*(pow(kx,2)+pow(ky,2))), 0.5*kx*ky);
 	for(int i1=0; i1<n_lnd; i1++){
 		if(verbose>1) cout<<(bitset<6>)lnd_states[i1]<<endl;
@@ -955,12 +966,12 @@ Eigen::SparseMatrix< complex<double> > NewChanger::density_operator(int my, int 
 			//another minus sign for every electron this electron hops over
 			if (x+mx>NPhi){
 				for(int y=0;y<(x+mx)%NPhi;y++)
-					if(lnd_states[i1] & 1<<y) sign*=-1;
+					if(lnd_states[i1] & one<<y) sign*=-1;
 				for(int y=x+1;y<NPhi;y++)
-					if(lnd_states[i1] & 1<<y) sign*=-1;
+					if(lnd_states[i1] & one<<y) sign*=-1;
 			}else{
 				for(int y=x+1;y<x+mx;y++) 
-					if(lnd_states[i1] & 1<<y) sign*=-1;
+					if(lnd_states[i1] & one<<y) sign*=-1;
 			}
 			triplets.push_back(Eigen::Triplet< complex<double> >( it-new_states.begin(),i1,sign*prefactor*polar(1.,ky*2*M_PI/Lx*x) ) );
 		}
@@ -977,7 +988,7 @@ void NewChanger::makeShrinker(int nx){
 	vector<int> found_states;
 
 	int temp,index;
-	vector<unsigned int>::iterator it;
+	vector<state_int>::iterator it;
 	int col=0, phase,sign;
 
 //	for(int i=0;i<nStates;i++) cout<<(bitset<12>)states[i]<<endl;
@@ -1007,7 +1018,7 @@ void NewChanger::makeShrinker(int nx){
 			 continue;
 		}
 
-		for(unsigned int j=0;j<temptrips.size();j++) 
+		for(state_int j=0;j<temptrips.size();j++) 
 			temptrips[j]=Eigen::Triplet< complex<double> >(temptrips[j].col(), temptrips[j].row(), temptrips[j].value()/sqrt(temptrips.size()));
 		triplets.insert(triplets.end(),temptrips.begin(),temptrips.end());
 //		cout<<endl;

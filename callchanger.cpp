@@ -2,6 +2,8 @@
 #ifdef USE_CLUSTER
 ArpackError::ErrorCode ArpackError::code = NO_ERRORS;
 #endif
+
+
 int main(){
 
 //	int NPhi, Ne;
@@ -96,14 +98,14 @@ void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, con
 	for(int i=0;i<(signed)control.lnd_states.size();i++){
 		partner=0;
 		for(int x=0;x<NPhi;x++)
-			if(! (control.lnd_states[i] & 1<<x)) partner=partner | 1<<x;
+			if(! (control.lnd_states[i] & one<<x)) partner=partner | one<<x;
 
 		it=find(test1.lnd_states.begin(),test1.lnd_states.end(),partner);
 		if(it != test1.lnd_states.end()){
 			j=it-test1.lnd_states.begin();
 			xcharge=0;
 			for(int x=0;x<NPhi;x++) 
-				if(control.lnd_states[i] & 1<<x) xcharge+=x;
+				if(control.lnd_states[i] & one<<x) xcharge+=x;
 			
 			if(xcharge%2) sign=-1;
 			else sign=1;
@@ -117,7 +119,7 @@ void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, con
 	
 	cout<<"actual dot products: "<<endl;
 //	cout<<vec0<<endl<<endl;
-//	cout<<ph_sym*vec1<<endl<<endl;
+//	cout<<ph_sym*vecone<<endl<<endl;
 	complex<double> overlap=vec0.dot( (ph_sym*vec1).conjugate());
 	cout<<overlap<<endl;
 	cout<<abs(overlap)<<" "<<arg(overlap)<<endl;
@@ -130,7 +132,7 @@ void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, con
 		abs1(i)=abs(vec1(i));
 	}
 //	cout<<abs0<<endl<<endl;
-//	cout<<ph_sym*abs1<<endl<<endl;
+//	cout<<ph_sym*absone<<endl<<endl;
 	cout<<abs0.dot(ph_sym*abs1)<<endl;
 	
 		
@@ -139,6 +141,7 @@ void ph_overlap(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, con
 
 //given a model wavefunction, finds the overlap with the action of PH + inversion
 double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, const NewChanger &control, const Eigen::VectorXcd &vec0){
+	state_int one=1;
 	vector<vector<int> > new_cfl_ds=vector<vector<int> >(Ne,vector<int>(2,0));
 	for(int i=0;i<Ne;i++){
 		new_cfl_ds[i][0]=-cfl_ds[i][0];
@@ -156,14 +159,14 @@ double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, 
 	for(int i=0;i<(signed)control.lnd_states.size();i++){
 		partner=0;
 		for(int x=0;x<NPhi;x++)
-			if(! (control.lnd_states[i] & 1<<x)) partner=partner | 1<<x;
+			if(! (control.lnd_states[i] & one<<x)) partner=partner | one<<x;
 
 		it=find(test1.lnd_states.begin(),test1.lnd_states.end(),partner);
 		if(it != test1.lnd_states.end()){
 			j=it-test1.lnd_states.begin();
 			xcharge=0;
 			for(int x=0;x<NPhi;x++) 
-				if(control.lnd_states[i] & 1<<x) xcharge+=x;
+				if(control.lnd_states[i] & one<<x) xcharge+=x;
 			
 			if(xcharge%2) sign=-1;
 			else sign=1;
@@ -180,7 +183,7 @@ double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, 
 	for(int i=0;i<(signed)control.lnd_states.size();i++){
 		partner=0;
 		for(int x=0;x<NPhi;x++)
-			if( control.lnd_states[i] & 1<<x) partner=partner | 1<<(NPhi-1-x);
+			if( control.lnd_states[i] & one<<x) partner=partner | one<<(NPhi-1-x);
 
 		it=find(test1.lnd_states.begin(),test1.lnd_states.end(),partner);
 		if(it != test1.lnd_states.end()){
@@ -205,7 +208,7 @@ double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, 
 //	for(int i=0;i<(signed)control.lnd_states.size();i++){
 //		partner=0;
 //		for(int x=0;x<NPhi;x++)
-//			if( control.lnd_states[i] & 1<<x) partner=partner | 1<<supermod(x+1,NPhi);
+//			if( control.lnd_states[i] & one<<x) partner=partner | one<<supermod(x+1,NPhi);
 
 //		it=find(test2.lnd_states.begin(),test2.lnd_states.end(),partner);
 //		if(it != test2.lnd_states.end()){
@@ -309,6 +312,8 @@ void batch_overlap(){
 
 //finds the overlaps between different model wf, good for checking rank
 void orthogonality(){
+	state_int one=1;
+
 	int Ne;
 	int NPhi;
 	string crap;
@@ -379,14 +384,14 @@ void orthogonality(){
 	for(int i=0;i<(signed)control.lnd_states.size();i++){
 		partner=0;
 		for(int x=0;x<NPhi;x++)
-			if(! (control.lnd_states[i] & 1<<x)) partner=partner | 1<<supermod(NPhi-1-x,NPhi);
+			if(! (control.lnd_states[i] & one<<x)) partner=partner | one<<supermod(NPhi-1-x,NPhi);
 
 		it=find(control.lnd_states.begin(),control.lnd_states.end(),partner);
 		if(it != control.lnd_states.end()){
 			j=it-control.lnd_states.begin();
 			xcharge=0;
 			for(int x=0;x<NPhi;x++) 
-				if(control.lnd_states[i] & 1<<x) xcharge+=x;
+				if(control.lnd_states[i] & one<<x) xcharge+=x;
 			
 			if(xcharge%2) sign=-1;
 			else sign=1;
@@ -632,7 +637,9 @@ void energy_variance(){
 		cout<<"Dvar: "<<Dvar<<endl;
 		
 		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,params,zs_type);
+		cout<<"constructed"<<endl;
 		vec0.push_back(control.run(true));
+		cout<<"ran"<<endl;
 		if(zs_type=="lines") control.symmetry_checks();
 
 		controls.push_back(control);
