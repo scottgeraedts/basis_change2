@@ -255,6 +255,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 	//vandermonde piece
 	int vandermonde_exponent=invNu;
 	if(type=="CFL") vandermonde_exponent-=2;
+	if(type=="HLR") vandermonde_exponent-=1;
 	complex<double> z;
 	for( int i=0;i<Ne;i++){
 		for( int j=i+1;j<Ne;j++){
@@ -334,7 +335,26 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 		//cout<<temp<<endl;
 	  	out*=temp;
 	}
-        
+    if(type=="HLR"){
+    	temp=0;
+    	temp2=1;
+    	int sign=1;
+   		vector<int> vals(Ne);
+   		for(int i=0; i<Ne; i++) vals[i]=i;
+		int i=0;
+   		do{
+   			temp2=1.;
+   			for(int j=i+1; j<Ne; j++){
+				ix=zs[i][0]-zs[j][0]-(cfl_ds[vals[i]][0]-cfl_ds[vals[j]][0]);
+				iy=zs[i][1]-zs[j][1]-(cfl_ds[vals[i]][1]-cfl_ds[vals[j]][0]);  		
+				temp2*=modded_lattice_z(ix,iy);
+			}
+   			temp+=(1.*sign)*temp2*polar(1.,M_PI*(zs[i][1]*cfl_ds[vals[i]][0] - zs[i][0]*cfl_ds[vals[i]][1])/(1.*NPhi));
+   			sign*=-1;
+   			i++;
+   		}while(next_permutation(vals.begin(),vals.begin()+Ne));
+    	out*=temp;
+    }    
 	return out;
 } 
 void NewChanger::reset_ds(vector< vector<int> > ds, double ddbarx_t, double ddbary_t){

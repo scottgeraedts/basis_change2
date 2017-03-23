@@ -636,7 +636,7 @@ void energy_variance(){
 		Dvar/=sqrt(Ne);
 		cout<<"Dvar: "<<Dvar<<endl;
 		
-		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,params,zs_type);
+		NewChanger control(NPhi,Ne,0,"HLR",cfl_ds,params,zs_type);
 		cout<<"constructed"<<endl;
 		vec0.push_back(control.run(false));
 		cout<<"ran"<<endl;
