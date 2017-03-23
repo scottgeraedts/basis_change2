@@ -16,7 +16,10 @@
 
 #define NBITS 32
 
+#ifndef STATE_INT
+#define STATE_INT
 typedef unsigned long int state_int;
+#endif
 
 using namespace std;
 

@@ -154,7 +154,7 @@ double ph_overlap2(int Ne, int NPhi, string type, vector< vector<int> > cfl_ds, 
 
 	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
 	vector<Eigen::Triplet<complex<double> > > ph_triplets;
-	vector<unsigned int>::const_iterator it;
+	vector<state_int>::iterator it;
 	int partner,sign,xcharge,j;
 	for(int i=0;i<(signed)control.lnd_states.size();i++){
 		partner=0;
@@ -379,7 +379,7 @@ void orthogonality(){
 	
 	///***MAKE PH SYMMETRY TRANSLATION MATRIX***///
 	vector<Eigen::Triplet<complex<double> > > ph_triplets;
-	vector<unsigned int>::const_iterator it;
+	vector<state_int>::const_iterator it;
 	int partner,sign,xcharge,j;
 	for(int i=0;i<(signed)control.lnd_states.size();i++){
 		partner=0;
@@ -638,7 +638,7 @@ void energy_variance(){
 		
 		NewChanger control(NPhi,Ne,0,"CFL",cfl_ds,params,zs_type);
 		cout<<"constructed"<<endl;
-		vec0.push_back(control.run(true));
+		vec0.push_back(control.run(false));
 		cout<<"ran"<<endl;
 		if(zs_type=="lines") control.symmetry_checks();
 
@@ -689,21 +689,21 @@ void energy_variance(){
 
 		cout<<"Ed state"<<endl;
 		Eigen::VectorXd absED(states.size()), absWF(states.size());
-		for(int i=0;i<(signed)states.size();i++){
-			cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<" ";
-			cout<<abs(vec0[nvec](i))<<" "<<arg(vec0[nvec](i))<<endl;
-			absWF(i)=abs(vec0[nvec](i));
-			absED(i)=abs(ev1(i));
-			
-		}
-		cout<<endl;
+//		for(int i=0;i<(signed)states.size();i++){
+//			cout<<abs(ev1(i))<<" "<<arg(ev1(i))/M_PI<<" "<<(bitset<NBITS>)states[i]<<" ";
+//			cout<<abs(vec0[nvec](i))<<" "<<arg(vec0[nvec](i))<<endl;
+//			absWF(i)=abs(vec0[nvec](i));
+//			absED(i)=abs(ev1(i));
+//			
+//		}
+//		cout<<endl;
 //		
 		cout<<"absolute overlaps"<<absED.dot(absWF)<<endl;
 		
 		if(!have_self_energy) self_energy=T.self_energy();
 		cout<<"ED energy: "<<ED_E/(1.*Ne)+self_energy<<endl;
 		//cout<<EDout.size()<<" "<<ev1.size()<<" "<<vec0.size()<<" "<<control.lnd_states.size()<<endl;
-		if(NPhi/Ne==2) cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,controls[nvec],ev1)<<endl;
+//		if(NPhi/Ne==2) cout<<"ED PH symmetry: "<<ph_overlap2(Ne,NPhi,"CFL",cfl_ds,controls[nvec],ev1)<<endl;
 
 		temp_mult=vec0[nvec].adjoint()*T.EigenSparse*T.EigenSparse*vec0[nvec];
 		E2=real(temp_mult);
