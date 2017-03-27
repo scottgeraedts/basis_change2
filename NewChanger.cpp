@@ -74,7 +74,7 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	int xcharge;
 	lnd_charge=Ne*manybody_COM;
 	if(Ne%2==0) lnd_charge+=NPhi/2; //for some reason you dont get the charge sector you expect for even Ne
-	if(type=="CFL" or type=="oldCFL" or type=="HLR") lnd_charge+=dsum[1]/invNu;
+	if(type=="CFL" or type=="oldCFL" or type=="HLR" or type=="Senthil") lnd_charge+=dsum[1]/invNu;
 	lnd_charge=supermod(lnd_charge,NPhi);
 //	cout<<"charge: "<<lnd_charge<<endl;
 	cout<<"staring to make states"<<endl;
@@ -123,7 +123,7 @@ void NewChanger::symmetry_checks(){
 	complex<double> dfactor;
 	if(type=="laughlin") dfactor=1.;
 	else if(type=="CFL" or type=="oldCFL") dfactor=polar(1.,2*M_PI*dsum[1]/(1.*NPhi*invNu));
-	else if (type=="HLR") dfactor=polar(1.,2*M_PI*dsum[1]/(1.*NPhi*invNu));
+	else if (type=="HLR" or type=="Senthil") dfactor=polar(1.,2*M_PI*dsum[1]/(1.*NPhi*invNu));
 ///***CHECKING X SYMMETRIES***////
 	cout<<"*****CHECKING X SYMMETRIES****"<<endl;
 	cout<<"checking wavefunction"<<endl;
@@ -280,7 +280,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 	}
 
 	for( int i=0;i<invNu;i++){
-		if(type=="CFL" or type=="HLR"){
+		if(type=="CFL" or type=="HLR" or type=="Senthil"){
 			x=(COM[0]-dsum[0]/invNu)/(1.*NPhi)-mb_zeros[i][0];
 			y=(COM[1]-dsum[1]/invNu)/(1.*NPhi)-mb_zeros[i][1];
 		}
@@ -340,7 +340,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 		//cout<<temp<<endl;
 	  	out*=temp;
 	}
-    if(type=="HLR"){
+    if(type=="HLR" or type=="Senthil"){
     	temp=0;
     	temp2=1;
    		vector<int> vals(Ne);
@@ -350,12 +350,20 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
    			temp2=1.;
    			for(int i=0; i<Ne; i++){
 	   			for(int j=i+1; j<Ne; j++){
-					ix=zs[i][0]-zs[j][0]-(cfl_ds[vals[i]][0]-cfl_ds[vals[j]][0]);
-					iy=zs[i][1]-zs[j][1]-(cfl_ds[vals[i]][1]-cfl_ds[vals[j]][1]);  
+					ix=zs[i][0]-zs[j][0];
+					iy=zs[i][1]-zs[j][1];
+					if (type=="HLR"){
+						ix-=(cfl_ds[vals[i]][0]-cfl_ds[vals[j]][0]);
+						iy-=(cfl_ds[vals[i]][1]-cfl_ds[vals[j]][1]);  
+					}else if(type=="Senthil"){
+						ix-=invNu*(cfl_ds[vals[i]][0]-cfl_ds[vals[j]][0]);
+						iy-=invNu*(cfl_ds[vals[i]][1]-cfl_ds[vals[j]][1]);  
+					}					
 					x=ix/(1.*NPhi);
 					y=iy/(1.*NPhi);		
 					z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp3);
-					temp2*=temp3*temp3;
+					if (type=="HLR") temp2*=temp3*temp3;
+					else if (type=="Senthil") temp2*=temp3;
 					//temp2*=modded_lattice_z(ix,iy);
 				}
 				temp2*=polar(1.,M_PI*(zs[i][1]*cfl_ds[vals[i]][0] - zs[i][0]*cfl_ds[vals[i]][1])/(1.*NPhi));
@@ -364,32 +372,6 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 //   			cout<<signs[p]<<endl;
    		}
     	out*=temp;
-    }  
-    if(type=="Senthil"){
-     	temp=0;
-    	temp2=1;
-    	int sign=1;
-   		vector<int> vals(Ne);
-   		for(int i=0; i<Ne; i++) vals[i]=i;
-		complex<double> temp3;
-   		do{
-   			temp2=1.;
-   			for(int i=0; i<Ne; i++){
-	   			for(int j=i+1; j<Ne; j++){
-					ix=zs[i][0]-zs[j][0]-(cfl_ds[vals[i]][0]-cfl_ds[vals[j]][0]);
-					iy=zs[i][1]-zs[j][1]-(cfl_ds[vals[i]][1]-cfl_ds[vals[j]][0]);  
-					x=ix/(1.*NPhi);
-					y=iy/(1.*NPhi);		
-					z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp3);
-					temp2*=temp3;
-					//temp2*=modded_lattice_z(ix,iy);
-				}
-				temp2*=polar(1.,M_PI*(zs[i][1]*cfl_ds[vals[i]][0] - zs[i][0]*cfl_ds[vals[i]][1])/(1.*NPhi));
-			}
-   			temp+=(1.*sign)*temp2;
-   			sign*=-1;
-   		}while(next_permutation(vals.begin(),vals.begin()+Ne));
-    	out*=temp;   	
     }  
 	return out;
 } 
