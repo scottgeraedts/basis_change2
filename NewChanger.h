@@ -58,6 +58,7 @@ private:
 	void make_Amatrix();
 	void make_landau_table();
 	void setup_mbl_zs();
+	void make_permutations();
 	
 	complex<double> landau_basis( int ix, int iy, int index);
 	double det_helper(int z1, int z2, int d, double dbar);
@@ -73,6 +74,9 @@ private:
 	vector< vector< vector< complex<double> > > > lnd_table;
 	vector< vector< complex<double> > > shifted_ztable;
 	complex<double> modded_lattice_z(int x, int y);
+	
+	vector<vector<int> > permutations;
+	vector<int> signs;
 	
 	int NPhi,Ne,invNu;
 	int manybody_COM;

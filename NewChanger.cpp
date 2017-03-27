@@ -74,7 +74,7 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	int xcharge;
 	lnd_charge=Ne*manybody_COM;
 	if(Ne%2==0) lnd_charge+=NPhi/2; //for some reason you dont get the charge sector you expect for even Ne
-	if(type=="CFL" or type=="oldCFL") lnd_charge+=dsum[1]/invNu;
+	if(type=="CFL" or type=="oldCFL" or type=="HLR") lnd_charge+=dsum[1]/invNu;
 	lnd_charge=supermod(lnd_charge,NPhi);
 //	cout<<"charge: "<<lnd_charge<<endl;
 	cout<<"staring to make states"<<endl;
@@ -104,6 +104,10 @@ NewChanger::NewChanger(int NPhi_t, int Ne_t, int manybody_COM_t, string type_t, 
 	set_l_(&NPhi, &L1, &L2);
 	setup_z_function_table_();
 
+	//make a list of all permutations and their signs 
+	if (type=="HLR" or type=="Senthil"){
+		make_permutations();
+	}
 }
 void NewChanger::symmetry_checks(){
 
@@ -111,14 +115,15 @@ void NewChanger::symmetry_checks(){
 		cout<<"wrong z type for symmetry checking"<<endl;
 	}
 	make_manybody_symmetry_x();
-	make_manybody_symmetry_y();
+	//make_manybody_symmetry_y();
 	make_landau_symmetry_x();
-	make_landau_symmetry_y();
+	//make_landau_symmetry_y();
 	cout<<n_mb<<" "<<n_lnd<<endl;
 
 	complex<double> dfactor;
 	if(type=="laughlin") dfactor=1.;
 	else if(type=="CFL" or type=="oldCFL") dfactor=polar(1.,2*M_PI*dsum[1]/(1.*NPhi*invNu));
+	else if (type=="HLR") dfactor=polar(1.,2*M_PI*dsum[1]/(1.*NPhi*invNu));
 ///***CHECKING X SYMMETRIES***////
 	cout<<"*****CHECKING X SYMMETRIES****"<<endl;
 	cout<<"checking wavefunction"<<endl;
@@ -146,12 +151,12 @@ void NewChanger::symmetry_checks(){
 			}
 		}
 	}
-
+	return;
 ///***CHECKING Y SYMMETRIES***///
 	cout<<"*****CHECKING Y SYMMETRIES****"<<endl;
 
 	if(type=="laughlin") dfactor=1.;
-	else if(type=="CFL" or type=="oldCFL") dfactor=polar(1.,-2*M_PI*dsum[0]/(1.*Ne*invNu));
+	else if(type=="CFL" or type=="oldCFL" or type=="HLR") dfactor=polar(1.,-2*M_PI*dsum[0]/(1.*Ne*invNu));
 
 	Eigen::VectorXcd tempY=Ty_mb*manybody_vector;
 	for(int i=0;i<n_mb;i++){ 
@@ -254,8 +259,8 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
     
 	//vandermonde piece
 	int vandermonde_exponent=invNu;
-	if(type=="CFL") vandermonde_exponent-=2;
-	if(type=="HLR") vandermonde_exponent-=1;
+	if(type=="CFL" or type=="HLR") vandermonde_exponent-=2;
+	if(type=="Senthil") vandermonde_exponent-=1;
 	complex<double> z;
 	for( int i=0;i<Ne;i++){
 		for( int j=i+1;j<Ne;j++){
@@ -275,7 +280,7 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
 	}
 
 	for( int i=0;i<invNu;i++){
-		if(type=="CFL"){
+		if(type=="CFL" or type=="HLR"){
 			x=(COM[0]-dsum[0]/invNu)/(1.*NPhi)-mb_zeros[i][0];
 			y=(COM[1]-dsum[1]/invNu)/(1.*NPhi)-mb_zeros[i][1];
 		}
@@ -338,23 +343,54 @@ complex<double> NewChanger::get_wf(const vector< vector<int> > &zs){
     if(type=="HLR"){
     	temp=0;
     	temp2=1;
+   		vector<int> vals(Ne);
+		complex<double> temp3;
+   		for(int p=0; p<(signed)permutations.size(); p++){
+   			vals=permutations[p];
+   			temp2=1.;
+   			for(int i=0; i<Ne; i++){
+	   			for(int j=i+1; j<Ne; j++){
+					ix=zs[i][0]-zs[j][0]-(cfl_ds[vals[i]][0]-cfl_ds[vals[j]][0]);
+					iy=zs[i][1]-zs[j][1]-(cfl_ds[vals[i]][1]-cfl_ds[vals[j]][1]);  
+					x=ix/(1.*NPhi);
+					y=iy/(1.*NPhi);		
+					z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp3);
+					temp2*=temp3*temp3;
+					//temp2*=modded_lattice_z(ix,iy);
+				}
+				temp2*=polar(1.,M_PI*(zs[i][1]*cfl_ds[vals[i]][0] - zs[i][0]*cfl_ds[vals[i]][1])/(1.*NPhi));
+			}
+   			temp+=(1.*signs[p])*temp2;
+//   			cout<<signs[p]<<endl;
+   		}
+    	out*=temp;
+    }  
+    if(type=="Senthil"){
+     	temp=0;
+    	temp2=1;
     	int sign=1;
    		vector<int> vals(Ne);
    		for(int i=0; i<Ne; i++) vals[i]=i;
-		int i=0;
+		complex<double> temp3;
    		do{
    			temp2=1.;
-   			for(int j=i+1; j<Ne; j++){
-				ix=zs[i][0]-zs[j][0]-(cfl_ds[vals[i]][0]-cfl_ds[vals[j]][0]);
-				iy=zs[i][1]-zs[j][1]-(cfl_ds[vals[i]][1]-cfl_ds[vals[j]][0]);  		
-				temp2*=modded_lattice_z(ix,iy);
+   			for(int i=0; i<Ne; i++){
+	   			for(int j=i+1; j<Ne; j++){
+					ix=zs[i][0]-zs[j][0]-(cfl_ds[vals[i]][0]-cfl_ds[vals[j]][0]);
+					iy=zs[i][1]-zs[j][1]-(cfl_ds[vals[i]][1]-cfl_ds[vals[j]][0]);  
+					x=ix/(1.*NPhi);
+					y=iy/(1.*NPhi);		
+					z_function_(&x,&y,&L1,&L2,&zero,&NPhi,&temp3);
+					temp2*=temp3;
+					//temp2*=modded_lattice_z(ix,iy);
+				}
+				temp2*=polar(1.,M_PI*(zs[i][1]*cfl_ds[vals[i]][0] - zs[i][0]*cfl_ds[vals[i]][1])/(1.*NPhi));
 			}
-   			temp+=(1.*sign)*temp2*polar(1.,M_PI*(zs[i][1]*cfl_ds[vals[i]][0] - zs[i][0]*cfl_ds[vals[i]][1])/(1.*NPhi));
+   			temp+=(1.*sign)*temp2;
    			sign*=-1;
-   			i++;
    		}while(next_permutation(vals.begin(),vals.begin()+Ne));
-    	out*=temp;
-    }    
+    	out*=temp;   	
+    }  
 	return out;
 } 
 void NewChanger::reset_ds(vector< vector<int> > ds, double ddbarx_t, double ddbary_t){
@@ -594,9 +630,9 @@ void NewChanger::make_manybody_vector(){
 	manybody_vector=manybody_vector/norm;
 	
 	for(int i=0;i<n_mb;i++){
-		//cout<<manybody_vector(i)<<" ";
-		//if(zs_type=="lines") cout<<(bitset<10>)(mb_states[i%(n_mb/NPhi)]);
-		//cout<<endl;
+//		cout<<manybody_vector(i)<<" ";
+//		if(zs_type=="lines") cout<<(bitset<10>)(mb_states[i%mb_states.size()]);
+//		cout<<endl;
 	}
 }
 
@@ -885,7 +921,7 @@ void NewChanger::make_manybody_symmetry_x(){
 				sign=1;
 				if(mb_states[newindex] <= mb_states[i]){
 					if (type=="laughlin" ) sign*=-1.;
-					if ( (type== "CFL" or type=="oldCFL") && Ne%2==0) sign*=-1;
+					if ( (type== "CFL" or type=="oldCFL" or type=="HLR" or type=="Senthil") && Ne%2==0) sign*=-1;
 					if (y*ystep % 2) sign*=-1; //this one is from the gauge term below
 					//if (type=="laughlin" && y%2) sign*=-1;
 				}
@@ -1052,3 +1088,32 @@ void NewChanger::makeShrinker(int nx){
 	shrinkMatrix=shrinkMatrix.adjoint();
 }
 
+void NewChanger::make_permutations( ){
+	permutations.clear();
+	signs.clear();
+	vector<int> vals(Ne);
+	for(int i=0; i<Ne; i++) vals[i]=i;
+	vector<int> temp;
+	int store,sign;
+
+	do{
+		permutations.push_back(vals);
+		temp=vals;
+		sign=1;
+		//do bubble sort, keeping track of the number of number of swaps
+		for(int m=0;m<Ne; m++){
+			for(int n=0; n<Ne-1; n++){
+				if (temp[n]>temp[n+1]){
+					store=temp[n];
+					temp[n]=temp[n+1];
+					temp[n+1]=store;
+					sign*=-1;
+				}
+			}
+		}
+		signs.push_back(sign);
+		
+	}while(next_permutation(vals.begin(),vals.begin()+Ne));		
+	
+	
+}
