@@ -517,7 +517,7 @@ void CFL_berry(){
 
 	int dkx,dky; 
 	for(unsigned int k=0;k<(unsigned)nks;k++){
-		NewChanger H1(NPhi, Ne, 0, "CFL", ds[k], params), H2(NPhi, Ne, 0, "CFL", ds2[k], params);
+		NewChanger H1(NPhi, Ne, 0, "HLR", ds[k], params), H2(NPhi, Ne, 0, "CFL", ds2[k], params);
 
 		dkx=charges[(k+1)%ds.size()][0]-charges[k][0];
 		dky=charges[(k+1)%ds.size()][1]-charges[k][1];
